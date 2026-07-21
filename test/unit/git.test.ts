@@ -69,10 +69,48 @@ describe("collectGitHistory", () => {
     expect(file.created).toBe("2026-01-01T00:00:00+00:00");
   });
 
-  it("throws DockgError outside a git repo", async () => {
-    await expect(collectGitHistory("/repo", mockExec("", 128))).rejects.toThrow(
-      DockgError,
+  it("throws DockgError outside a git repo, surfacing git's stderr", async () => {
+    const exec: ExecFn = () =>
+      Promise.resolve<ExecResult>({
+        code: 128,
+        stdout: "",
+        stderr: "fatal: not a git repository",
+        timedOut: false,
+      });
+    await expect(collectGitHistory("/repo", exec)).rejects.toThrow(
+      /not a git repository/,
     );
+  });
+
+  it("distinguishes timeouts and spawn failures from not-a-repo", async () => {
+    const timedOut: ExecFn = () =>
+      Promise.resolve<ExecResult>({ code: null, stdout: "partial", stderr: "", timedOut: true });
+    await expect(collectGitHistory("/repo", timedOut)).rejects.toThrow(/timed out/);
+
+    const spawnFail: ExecFn = () =>
+      Promise.resolve<ExecResult>({
+        code: null,
+        stdout: "",
+        stderr: "",
+        timedOut: false,
+        spawnError: "spawn git ENOENT",
+      });
+    await expect(collectGitHistory("/repo", spawnFail)).rejects.toThrow(
+      /git could not be run/,
+    );
+  });
+
+  it("unquotes C-quoted paths (quotes and octal escapes survive quotepath=off)", async () => {
+    const log = [
+      `${SOH}c1\tA\t2026-01-01T00:00:00+00:00`,
+      "",
+      'A\t"docs/a\\"b.md"',
+      'A\t"docs/caf\\303\\251.md"',
+      "",
+    ].join("\n");
+    const history = await collectGitHistory("/repo", mockExec(log));
+    expect(history.files.has('docs/a"b.md')).toBe(true);
+    expect(history.files.has("docs/café.md")).toBe(true);
   });
 
   it("handles tab-free author names with unicode paths (quotepath off)", async () => {

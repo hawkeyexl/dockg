@@ -108,8 +108,19 @@ export async function runFill(opts: FillOptions = {}): Promise<FillReport> {
   let costUsd = 0;
 
   for (const path of files) {
+    // Read failures are operational (deleted file, permissions) — abort the
+    // whole run with exit 2 rather than burning LLM budget on the rest.
+    const absPath = resolve(cwd, path);
+    let content: string;
     try {
-      results.push(await fillOne(path));
+      content = readFileSync(absPath, "utf8");
+    } catch (e) {
+      throw new DockgError(
+        `cannot read ${path}: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
+    try {
+      results.push(await fillOne(path, absPath, content));
     } catch (e) {
       results.push({
         path,
@@ -125,10 +136,11 @@ export async function runFill(opts: FillOptions = {}): Promise<FillReport> {
   const hasErrors = results.some((r) => r.status === "error");
   return { results, costUsd, exitCode: hasErrors ? 1 : 0 };
 
-  async function fillOne(path: string): Promise<FillDocResult> {
-    const absPath = resolve(cwd, path);
-    const content = readFileSync(absPath, "utf8");
-
+  async function fillOne(
+    path: string,
+    absPath: string,
+    content: string,
+  ): Promise<FillDocResult> {
     if (frontmatterKind(content) === "unsupported") {
       throw new DockgError(
         "only YAML frontmatter can be edited (found a TOML/JSON fence) — exclude this file or convert its frontmatter",
@@ -208,15 +220,27 @@ export async function runFill(opts: FillOptions = {}): Promise<FillReport> {
     }
 
     // Record machine attribution alongside the fields, in the SAME write.
-    // Fields accumulate across runs (union with any prior entry) so a second
-    // run filling different fields doesn't erase the first run's attribution.
+    // One entry PER MODEL (schema 0.4): the current model's entry unions its
+    // own fields across runs, other models' entries are preserved — minus any
+    // field this run just overwrote (--force), so attribution never lies.
     const values: Record<string, unknown> = { ...narrowed };
     if (config.fill.writeProvenance) {
       const prior = existingProvenance(content);
-      values["provenance"] = {
+      const mine = prior.find((e) => e.generatedBy === identity.model);
+      const others = prior
+        .filter((e) => e.generatedBy !== identity.model)
+        .map((e) => ({
+          generatedBy: e.generatedBy,
+          fields: e.fields.filter((f) => !realFields.includes(f)),
+        }))
+        .filter((e) => e.fields.length > 0);
+      const entry = {
         generatedBy: identity.model,
-        fields: [...new Set([...(prior?.fields ?? []), ...realFields])].sort(),
+        fields: [...new Set([...(mine?.fields ?? []), ...realFields])].sort(),
       };
+      values["provenance"] = [...others, entry].sort((a, b) =>
+        a.generatedBy < b.generatedBy ? -1 : 1,
+      );
     }
 
     const applied = applyKgFields(content, path, values, {

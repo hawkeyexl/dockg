@@ -9,7 +9,8 @@ import type { DocModel } from "../types.js";
 /** Bump when the prompt changes — invalidates the fill cache. */
 export const PROMPT_VERSION = 1;
 
-const FIELD_SCHEMAS: Record<FillField, Record<string, unknown>> = {
+/** Exported for the schema-sync drift guard (test/unit/schema-sync.test.ts). */
+export const FIELD_SCHEMAS: Record<FillField, Record<string, unknown>> = {
   prefLabel: {
     type: "string",
     minLength: 1,

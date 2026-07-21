@@ -196,6 +196,19 @@ describe("analyzeDoc — route mapping", () => {
     ]);
   });
 
+  it("falls back to extension candidates for trailing-slash pretty URLs", () => {
+    // Hugo/Docusaurus serve find.mdx at /docs/actions/find/ — no index file exists
+    const doc = analyzeDoc("[pretty](/docs/actions/find/)\n", "docs/linker.md", paths, {
+      routes,
+    });
+    expect(doc.links).toEqual([
+      { raw: "/docs/actions/find/", kind: "internal", resolvedPath: "docs/pages/actions/find.mdx" },
+    ]);
+    // ...but index files still win when both exist
+    const dirDoc = analyzeDoc("[dir](/docs/actions/)\n", "docs/linker.md", paths, { routes });
+    expect(dirDoc.links[0]).toMatchObject({ resolvedPath: "docs/pages/actions/index.mdx" });
+  });
+
   it("resolves directory routes (trailing slash) via index files, and keeps anchors", () => {
     const doc = analyzeDoc(
       "[dir](/docs/actions/) [anchored](/docs/actions/find#usage)\n",

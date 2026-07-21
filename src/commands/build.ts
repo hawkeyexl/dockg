@@ -53,7 +53,12 @@ export async function runBuild(opts: BuildOptions = {}): Promise<BuildResult> {
     baseIri: config.baseIri,
     derive: config.build.derive,
     toolVersion: toolVersion(import.meta.url),
-    gitHistory: config.provenance.git ? await collectGitHistory(cwd) : undefined,
+    // The git pass only feeds the provenance derive source — skip the
+    // subprocess entirely when that source is disabled.
+    gitHistory:
+      config.provenance.git && config.build.derive.includes("provenance")
+        ? await collectGitHistory(cwd)
+        : undefined,
     qualified: config.provenance.qualified,
   });
   const turtle = emitTurtle(quads);

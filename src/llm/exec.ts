@@ -41,8 +41,13 @@ export const realExec: ExecFn = (cmd, opts = {}) => {
       resolvePromise(result);
     };
 
-    child.stdout?.on("data", (d: Buffer) => (stdout += d.toString()));
-    child.stderr?.on("data", (d: Buffer) => (stderr += d.toString()));
+    // setEncoding routes chunks through a StringDecoder, so multi-byte UTF-8
+    // characters straddling pipe-chunk boundaries decode correctly; a raw
+    // per-chunk Buffer.toString() would corrupt them nondeterministically.
+    child.stdout?.setEncoding("utf8");
+    child.stderr?.setEncoding("utf8");
+    child.stdout?.on("data", (d: string) => (stdout += d));
+    child.stderr?.on("data", (d: string) => (stderr += d));
     child.on("error", (e) =>
       settle({ code: null, stdout, stderr, timedOut, spawnError: e.message }),
     );

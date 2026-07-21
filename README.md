@@ -4,7 +4,7 @@ Deterministic knowledge graphs derived from documentation frontmatter and format
 
 `dockg` reads your docs — Markdown first — and derives an RDF knowledge graph from what is already there: frontmatter fields, heading structure, links between pages, tags, images, and code blocks. The build is **deterministic**: stable IRIs, sorted serialization, byte-identical rebuilds. The emitted `.ttl` diffs cleanly in git, so the graph can live next to the docs it describes.
 
-It pairs with [docmeta](https://github.com/hawkeyexl/docmeta) (which powers `dockg validate`) and follows the same CLI conventions as [docevals](https://github.com/hawkeyexl/docevals). dockg's frontmatter schema is published in this repo at [`schemas/frontmatter-0.3.json`](schemas/frontmatter-0.3.json) — point any JSON Schema tool at it, e.g. `docmeta validate --schema node_modules/dockg/schemas/frontmatter-0.3.json docs/`.
+It pairs with [docmeta](https://github.com/hawkeyexl/docmeta) (which powers `dockg validate`) and follows the same CLI conventions as [docevals](https://github.com/hawkeyexl/docevals). dockg's frontmatter schema is published in this repo at [`schemas/frontmatter-0.4.json`](schemas/frontmatter-0.4.json) — point any JSON Schema tool at it, e.g. `docmeta validate --schema node_modules/dockg/schemas/frontmatter-0.4.json docs/`.
 
 ## Install
 
@@ -48,7 +48,7 @@ Note: the emitted `schema:` prefix is `https://schema.org/` (the current recomme
 
 ## The `kg:` frontmatter key
 
-**Naming:** the *frontmatter key* is `kg:`; the *RDF namespace prefix* is `dockg:`. The `kg` key holds the SKOS fields dockg owns, validated by the JSON Schema published in this repo (`schemas/frontmatter-0.3.json`). Docs without a `kg` key are fine — everything above still derives.
+**Naming:** the *frontmatter key* is `kg:`; the *RDF namespace prefix* is `dockg:`. The `kg` key holds the SKOS fields dockg owns, validated by the JSON Schema published in this repo (`schemas/frontmatter-0.4.json`). Docs without a `kg` key are fine — everything above still derives.
 
 ```yaml
 ---
@@ -112,22 +112,27 @@ build errors loudly.
 
 **Qualified provenance (`provenance.qualified: true`, off by default):** adds
 PROV qualification nodes alongside the direct properties, with deterministic
-IRIs instead of blank nodes — `{doc}#attribution-{agent}` (`prov:Attribution`,
-`prov:hadRole dockg:authorRole`) and `{activity}-association`
+IRIs instead of blank nodes — `{doc}#prov.attribution.{agent}` (`prov:Attribution`,
+`prov:hadRole dockg:authorRole`) and `{activity}.assoc.{agent}`
 (`prov:Association`, roles `dockg:generatorRole` / `dockg:toolRole`).
 
 **Timestamps and determinism:** wall-clock time never enters the graph — all
 dates come from frontmatter or git committer times, so rebuilds at the same
 commit stay byte-identical.
 
-`dockg fill` records `kg.provenance: {generatedBy, fields}` on every doc it
+Provenance node fragments use `.` separators (`#prov.generation`,
+`#prov.kg-fill.{model}`), which heading slugs can never produce — a
+`## Generation` section can't collide with the generation activity.
+
+`dockg fill` records `kg.provenance` entries — one `{generatedBy, fields}`
+entry **per model**, so multi-model fills keep truthful attribution — on every doc it
 fills (disable with `fill.writeProvenance: false`). Fields accumulate across
 runs; delete the entry (or fields from it) once a human has reviewed the
 values, and the machine-attribution disappears from the graph. That makes
 "which parts of my taxonomy did an LLM propose?" a one-liner:
 `dockg query -p dockg:filledField`.
 
-These fields are validated by **`schemas/frontmatter-0.3.json`** (bundled with
+These fields are validated by **`schemas/frontmatter-0.4.json`** (bundled with
 the package; the default for `dockg validate`). Earlier versions
 (`frontmatter-0.1.json`, `frontmatter-0.2.json`) remain published alongside it.
 
@@ -169,7 +174,7 @@ dockg fill --force            # overwrite human-set kg fields too
 |---|---|
 | `dockg init` | Scaffold a starter `dockg.config.yaml` |
 | `dockg build [globs]` | Derive the graph and write deterministic Turtle |
-| `dockg validate [globs]` | Check KG frontmatter via docmeta (bundled `schemas/frontmatter-0.3.json`) |
+| `dockg validate [globs]` | Check KG frontmatter via docmeta (bundled `schemas/frontmatter-0.4.json`) |
 | `dockg fill [globs]` | Propose SKOS `kg:` fields with an LLM and write them back |
 | `dockg query` | Triple-pattern match: `-s`/`-p`/`-o`, omit for wildcard |
 | `dockg stats` | Counts, orphan docs, broken links, most-connected docs; `--check` gates CI |
@@ -191,7 +196,7 @@ build:
 provenance:
   git: false         # opt-in: per-file git dates/authors, rename revisions, build endedAtTime
   qualified: false   # opt-in: qualified attribution/association nodes with roles
-# validate.schemas defaults to the bundled schemas/frontmatter-0.3.json
+# validate.schemas defaults to the bundled schemas/frontmatter-0.4.json
 fill:
   provider: anthropic
   temperature: 0

@@ -64,6 +64,13 @@ gotcha, a decision, a convention — record it **in the repo, in the same change
 - `test/fixtures/corpus/docs/windows-notes.md` is CRLF **on purpose**, pinned by
   `.gitattributes`. Don't normalize it.
 
+## Branches and pull requests (required)
+
+Changes land on `main` via a branch and a pull request, not direct pushes.
+Branch names follow the release channels (`feat/**` gets its own npm
+dist-tag; `fix/**`, `docs/**`, etc. for the rest). The PR body carries the
+docs-impact statement and links any ADRs. CI must be green before merge.
+
 ## Development workflow (required)
 
 Always **red → green** TDD: write the failing test first, run it to confirm it fails for the
@@ -159,8 +166,11 @@ mkdir -p .tmp && npm test > .tmp/test-output.txt 2>&1
 
 ## Config keys ↔ CLI flags (required pattern)
 
-Every user-facing knob lives in `dockg.config.yaml`, schema-first. CLI flags override the
-resolved config; command cores read the merged result, never raw argv. Adding a knob:
+Every user-facing knob lives in `dockg.config.yaml`, schema-first. Knobs that vary
+per invocation (output paths, dry-run, cost caps, provider overrides) also get CLI
+flags that override the resolved config; corpus-defining settings (routes,
+provenance, derive sources) may be config-only. Command cores read the merged
+result, never raw argv. Adding a knob:
 
 1. **Schema first:** add the field to [src/core/config-schema.json](src/core/config-schema.json)
    (`additionalProperties: false` everywhere — unknown keys must fail loudly).

@@ -1,23 +1,14 @@
 /** dockg CLI entry point. */
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
 import { Command } from "commander";
 import pc from "picocolors";
 import { DockgError } from "./types.js";
+import { toolVersion } from "./core/pkg.js";
 import { runBuild } from "./commands/build.js";
 import { renderQuery, runQuery } from "./commands/query.js";
 import { renderValidate, runValidate } from "./commands/validate.js";
 import { renderFill, runFill } from "./commands/fill.js";
 import { runInit } from "./commands/init.js";
 import { renderStats, runStats } from "./commands/stats.js";
-
-const pkg = JSON.parse(
-  readFileSync(
-    join(dirname(fileURLToPath(import.meta.url)), "..", "package.json"),
-    "utf8",
-  ),
-) as { version: string };
 
 const program = new Command();
 
@@ -26,7 +17,7 @@ program
   .description(
     "Deterministic knowledge graphs derived from documentation frontmatter and formatting.",
   )
-  .version(pkg.version);
+  .version(toolVersion(import.meta.url));
 
 function fail(e: unknown): never {
   if (e instanceof DockgError) {
