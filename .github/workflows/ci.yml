@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
 
 env:
-  # dockg depends on docmeta via file:../docmeta. The dockg:frontmatter:0.1
-  # built-in currently lives on this docmeta branch; switch to `main` once it
-  # merges there.
+  # dockg depends on docmeta via file:../docmeta and needs its
+  # extractFrontmatter export, which is not on docmeta main yet; switch to
+  # `main` once that lands there.
   DOCMETA_REF: feat/docevals-builtin-schema
 
 jobs:
@@ -36,7 +36,10 @@ jobs:
       - run: npm run build
         working-directory: docmeta
 
-      - run: npm ci
+      # npm install (not ci): the lock includes the file:../docmeta tree,
+      # whose optional platform deps differ between the Windows dev machine
+      # and Linux CI, so a strict lock check cannot be satisfied on both.
+      - run: npm install
         working-directory: dockg
       - run: npm run typecheck
         working-directory: dockg
