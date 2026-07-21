@@ -64,6 +64,9 @@ function classifyLink(
   const pathPart = hashAt === -1 ? raw : raw.slice(0, hashAt);
   const anchor = hashAt === -1 ? undefined : raw.slice(hashAt + 1);
   if (pathPart === "") return null; // same-document anchor
+  // Site-root-absolute URLs (/docs/x/) are published-site routes, not repo
+  // paths — unresolvable without site mapping, so neither internal nor broken.
+  if (pathPart.startsWith("/")) return null;
   const resolved = resolveRelative(docPath, decodeURIComponent(pathPart));
   if (resolved !== null && allPaths.has(resolved)) {
     const link: DocLink = { raw, kind: "internal", resolvedPath: resolved };

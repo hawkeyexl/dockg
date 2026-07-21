@@ -9,6 +9,7 @@ import { runBuild } from "./commands/build.js";
 import { renderQuery, runQuery } from "./commands/query.js";
 import { renderValidate, runValidate } from "./commands/validate.js";
 import { renderFill, runFill } from "./commands/fill.js";
+import { runInit } from "./commands/init.js";
 import { renderStats, runStats } from "./commands/stats.js";
 
 const pkg = JSON.parse(
@@ -34,6 +35,17 @@ function fail(e: unknown): never {
   }
   throw e;
 }
+
+program
+  .command("init")
+  .description("Create a starter dockg.config.yaml in the current directory")
+  .action(() => {
+    try {
+      console.log(`Created ${runInit()}`);
+    } catch (e) {
+      fail(e);
+    }
+  });
 
 program
   .command("build")

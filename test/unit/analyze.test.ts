@@ -97,6 +97,11 @@ describe("analyzeDoc — links", () => {
     expect(doc.links).toEqual([]);
   });
 
+  it("ignores site-root-absolute links (published-site routes, not repo paths)", () => {
+    const doc = analyzeDoc("[route](/docs/config/)\n", "docs/intro.md", ALL);
+    expect(doc.links).toEqual([]);
+  });
+
   it("resolves reference-style links via definitions", () => {
     const doc = analyzeDoc(
       "[a][ref]\n\n[ref]: config.md\n",
