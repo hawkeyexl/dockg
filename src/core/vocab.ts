@@ -1,0 +1,23 @@
+/**
+ * Namespace table. Standard vocabularies wherever a term exists; the custom
+ * `dockg:` namespace stays minimal (2 classes, 5 properties). The prefix set
+ * is fixed — every emitted graph carries the same header.
+ */
+export const NS = {
+  dcterms: "http://purl.org/dc/terms/",
+  dockg: "https://dockg.dev/ns#",
+  foaf: "http://xmlns.com/foaf/0.1/",
+  rdf: "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+  schema: "https://schema.org/",
+  skos: "http://www.w3.org/2004/02/skos/core#",
+  xsd: "http://www.w3.org/2001/XMLSchema#",
+} as const;
+
+export type Prefix = keyof typeof NS;
+
+/** Prefixes in emission order (sorted by prefix name). */
+export const PREFIXES: ReadonlyArray<[Prefix, string]> = (
+  Object.entries(NS) as Array<[Prefix, string]>
+).sort(([a], [b]) => (a < b ? -1 : 1));
+
+export const RDF_TYPE = `${NS.rdf}type`;

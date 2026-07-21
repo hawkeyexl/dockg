@@ -5,6 +5,7 @@ import { dirname, join } from "node:path";
 import { Command } from "commander";
 import pc from "picocolors";
 import { DockgError } from "./types.js";
+import { runBuild } from "./commands/build.js";
 
 const pkg = JSON.parse(
   readFileSync(
@@ -29,5 +30,22 @@ function fail(e: unknown): never {
   }
   throw e;
 }
+
+program
+  .command("build")
+  .description("Derive the knowledge graph and write deterministic Turtle")
+  .argument("[globs...]", "Input globs (default: config inputs)")
+  .option("-c, --config <path>", "Path to dockg.config.yaml")
+  .option("-o, --out <path>", "Output .ttl path (default: config out)")
+  .action((globs: string[], opts: { config?: string; out?: string }) => {
+    try {
+      const result = runBuild({ globs, config: opts.config, out: opts.out });
+      console.log(
+        `Wrote ${result.outPath} (${result.docs} docs, ${result.quads} triples)`,
+      );
+    } catch (e) {
+      fail(e);
+    }
+  });
 
 program.parse();
