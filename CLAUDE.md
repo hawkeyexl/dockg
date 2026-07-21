@@ -187,6 +187,17 @@ result, never raw argv. Adding a knob:
 
 Precedence: `dockg.config.yaml` → Ajv validation → CLI override → runtime.
 
+## Automated review
+
+Every non-draft PR is reviewed by
+[.github/workflows/claude-pr-review.yml](.github/workflows/claude-pr-review.yml),
+which posts a single cohesive GitHub review. Its prompt is scoped to the
+invariants above — determinism, IRI stability, golden regression, schema
+immutability, exit codes — so the highest-value findings are contract
+violations, not style. Mentioning `@claude` on an issue, PR, or review comment
+triggers [claude.yml](.github/workflows/claude.yml) for ad-hoc work. Both use
+the repo's `CLAUDE_CODE_OAUTH_TOKEN` secret.
+
 ## Related files
 
 - [.github/workflows/ci.yml](.github/workflows/ci.yml) — CI incl. the determinism gate and the

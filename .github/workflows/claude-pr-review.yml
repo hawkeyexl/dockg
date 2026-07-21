@@ -1,0 +1,135 @@
+name: Claude PR Review - Auto
+
+on:
+  pull_request:
+    types: [opened, ready_for_review, reopened, synchronize]
+
+concurrency:
+  group: claude-auto-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    if: '!github.event.pull_request.draft'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create MCP config
+        run: |
+          cat > /tmp/mcp-config.json << 'EOF'
+          {
+            "mcpServers": {
+              "github": {
+                "type": "http",
+                "url": "https://api.githubcopilot.com/mcp/",
+                "headers": {
+                  "Authorization": "Bearer ${{ secrets.GITHUB_TOKEN }}"
+                }
+              }
+            }
+          }
+          EOF
+
+      - name: Run Claude Code
+        id: claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # Review PRs pushed by agent accounts too. Without the bot listed the
+          # action hard-fails with "Workflow initiated by non-human actor"
+          # instead of reviewing. A posted review is not a push/synchronize
+          # event, so this cannot loop.
+          allowed_bots: 'claude[bot]'
+          track_progress: true
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+            PR TITLE: ${{ github.event.pull_request.title }}
+            PR DESCRIPTION: ${{ github.event.pull_request.body }}
+            PR AUTHOR: ${{ github.event.pull_request.user.login }}
+
+            Perform a thorough code review of this pull request. Read CLAUDE.md
+            first — it states the invariants this repo is built on, and the most
+            valuable review findings are violations of them.
+
+            dockg's contracts (highest-value review targets)
+            - **Determinism.** `dockg build` twice over unchanged inputs must be
+              byte-identical. Flag anything that introduces wall-clock time
+              (`Date.now()`, `new Date()`, file mtimes), blank nodes, unsorted
+              iteration reaching the emitter, locale/timezone-dependent
+              formatting, or platform-dependent path handling (Windows vs
+              POSIX separators, CRLF).
+            - **IRI stability.** Emitted IRIs are a consumer contract. Any change
+              to how a node's IRI is minted is breaking and needs a `!` commit
+              and an ADR. Watch for collisions: distinct entities that could
+              slug to the same IRI, or fragments colliding with heading slugs.
+            - **The golden fixture** (`test/fixtures/golden/graph.ttl`) is the
+              regression gate. If this PR regenerates it, verify the diff is
+              *exactly* what the change intends and nothing else rode along.
+            - **Published schemas are immutable.** Files under `schemas/` that
+              are already published must not be edited; evolution happens by
+              adding a new version file and repointing `bundledSchemaPath`.
+            - **Exit codes.** `0` ok, `1` findings, `2` operational
+              (`DockgError`). Flag operational failures downgraded to findings
+              (or vice versa), and raw non-DockgError throws escaping to the CLI.
+
+            Correctness & completeness
+            - Bugs, logic errors, off-by-one, inverted conditions
+            - Null/undefined on reachable paths; falsy-zero treated as missing
+            - Missing `await`; errors swallowed in catch blocks
+            - Missing error handling at boundaries (filesystem, subprocess, network)
+            - Unfinished work or incomplete implementations
+
+            Code quality
+            - Consistency with existing patterns and architecture
+            - DRY — flag duplicated logic that should reuse an existing helper
+            - TypeScript strictness: this repo enables `noUncheckedIndexedAccess`;
+              flag non-null assertions (`!`) and unsound casts used to silence it
+            - Readability: naming, organization, comments that state constraints
+              rather than narrate the code
+
+            Testing
+            - Coverage for new logic, including the off/no-op state of any toggle
+              and the guard paths (missing git repo, unsupported frontmatter,
+              unresolvable targets)
+            - **No network in tests** — LLM paths go through `MockProvider`; the
+              exec seam is injectable for subprocess tests
+            - Integration tests run the built CLI, so `npm run build` must precede
+              `npm test`
+
+            Repo conventions (CLAUDE.md)
+            - Behavior changes ship with an ADR under `adrs/` (MADR 4.0.0,
+              numbered from 01000)
+            - Behavior changes carry their docs: README, `dockg init` template,
+              and `--help` text land in the same commit, or the PR states
+              explicitly that there is no user-facing impact
+            - Conventional Commits with a **lower-case subject**
+
+            Keep feedback concise. Use suggested fixes where possible.
+
+            You MUST submit a proper GitHub Pull Request Review (not loose line comments). Flow:
+            1. mcp__github__get_pull_request_diff — load exact changed lines before commenting.
+            2. mcp__github__create_pending_pull_request_review — start a pending review.
+            3. mcp__github__add_pull_request_review_comment_to_pending_review — one call per specific-line issue, targeting a line present in the diff.
+            4. mcp__github__submit_pending_pull_request_review — submit with event = APPROVE, REQUEST_CHANGES, or COMMENT.
+
+            The review body is your summary comment. Structure it as:
+              - One-line verdict with reasoning.
+              - Issues grouped by severity: **Blocking**, **Important**, **Nit**. Each entry: short description + file:line link.
+              - If no issues: confirm PR looks good.
+
+            Prefer the pending-review flow over create_issue_comment / inline_comment tools — we want a single cohesive review on the PR, not scattered comments.
+          claude_args: |
+            --model claude-sonnet-5
+            --max-turns 50
+            --mcp-config /tmp/mcp-config.json
+            --allowedTools "Bash(git diff:*),Bash(git log:*),Read,Glob,Grep,mcp__github__get_pull_request_diff,mcp__github__create_pending_pull_request_review,mcp__github__add_pull_request_review_comment_to_pending_review,mcp__github__submit_pending_pull_request_review,mcp__github__get_issue_comments"
