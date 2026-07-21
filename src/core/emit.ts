@@ -14,6 +14,26 @@ import { NS, PREFIXES, RDF_TYPE } from "./vocab.js";
 /** Conservative PN_LOCAL: shorten only when the local name is trivially safe. */
 const SAFE_LOCAL = /^[A-Za-z_][A-Za-z0-9_-]*$/;
 
+/**
+ * Percent-encode characters the Turtle IRIREF production forbids
+ * (controls, space, <>"{}|^` and backslash) so output always parses,
+ * whatever made it into a node value.
+ */
+// <>"{}|^ plus backtick (96) and backslash (92) — forbidden by IRIREF.
+const ILLEGAL_IRI_CHARS = '<>"{}|^' + String.fromCharCode(96, 92);
+
+function sanitizeIri(iriValue: string): string {
+  let out = "";
+  for (const ch of iriValue) {
+    const code = ch.codePointAt(0) as number;
+    const illegal = code <= 0x20 || ILLEGAL_IRI_CHARS.includes(ch);
+    out += illegal
+      ? "%" + code.toString(16).toUpperCase().padStart(2, "0")
+      : ch;
+  }
+  return out;
+}
+
 function shorten(iriValue: string): string {
   for (const [prefix, ns] of PREFIXES) {
     if (iriValue.startsWith(ns)) {
@@ -21,7 +41,7 @@ function shorten(iriValue: string): string {
       if (SAFE_LOCAL.test(local)) return `${prefix}:${local}`;
     }
   }
-  return `<${iriValue}>`;
+  return `<${sanitizeIri(iriValue)}>`;
 }
 
 function escapeLiteral(value: string): string {

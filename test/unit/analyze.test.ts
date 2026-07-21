@@ -102,6 +102,15 @@ describe("analyzeDoc — links", () => {
     expect(doc.links).toEqual([]);
   });
 
+  it("ignores scheme-bearing targets that are not parseable URLs (example junk)", () => {
+    const doc = analyzeDoc(
+      '[x](http://localhost:8092","params":{"token":"t"}}})\n',
+      "docs/intro.md",
+      ALL,
+    );
+    expect(doc.links).toEqual([]);
+  });
+
   it("resolves reference-style links via definitions", () => {
     const doc = analyzeDoc(
       "[a][ref]\n\n[ref]: config.md\n",

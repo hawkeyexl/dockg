@@ -82,6 +82,19 @@ describe("emitTurtle", () => {
     expect(ttl.includes("\r")).toBe(false);
   });
 
+  it("percent-encodes characters illegal in Turtle IRIs so output always parses", () => {
+    const ttl = emitTurtle([
+      {
+        s: DOC,
+        p: `${NS.dcterms}references`,
+        o: iri('http://example.com/a"b{c}d e|f^g`h\\i<j>k'),
+      },
+    ]);
+    expect(ttl).toContain(
+      "<http://example.com/a%22b%7Bc%7Dd%20e%7Cf%5Eg%60h%5Ci%3Cj%3Ek>",
+    );
+  });
+
   it("falls back to full IRIs when the local name is not a safe prefixed name", () => {
     const ttl = emitTurtle([
       { s: DOC, p: `${NS.dcterms}title`, o: iri(`${NS.dockg}weird/local`) },

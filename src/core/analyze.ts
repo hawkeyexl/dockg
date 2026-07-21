@@ -52,13 +52,12 @@ function classifyLink(
 ): DocLink | null {
   const raw = rawTarget;
   if (hasScheme(raw)) {
-    let url = raw;
     try {
-      url = new URL(raw).href;
+      return { raw, kind: "external", url: new URL(raw).href };
     } catch {
-      // keep the raw form when the URL constructor rejects it
+      // Scheme-bearing but unparseable — example junk, not a link. Skip.
+      return null;
     }
-    return { raw, kind: "external", url };
   }
   const hashAt = raw.indexOf("#");
   const pathPart = hashAt === -1 ? raw : raw.slice(0, hashAt);
