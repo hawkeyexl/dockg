@@ -6,6 +6,7 @@ export {
   conceptSlug,
   encodeSegment,
   mintAgentIri,
+  type AgentKind,
   mintBuildActivityIri,
   mintConceptIri,
   mintDocIri,

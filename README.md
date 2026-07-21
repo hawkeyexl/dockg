@@ -92,7 +92,7 @@ The `provenance` derive source (on by default) folds W3C PROV-O into the graph:
 | Source | Triples |
 |---|---|
 | every doc | `<doc> a prov:Entity` |
-| `author`/`authors` | `dcterms:creator` and `prov:wasAttributedTo` point at `{base}agent/{slug}` nodes (`prov:Person` + `foaf:name`) — docs connect by shared authors. Toggle `provenance` off to restore plain creator literals |
+| `author`/`authors` | `dcterms:creator` and `prov:wasAttributedTo` point at `{base}agent/person/{slug}` nodes (`prov:Person` + `foaf:name`) — docs connect by shared authors. Toggle `provenance` off to restore plain creator literals |
 | `date` | `prov:generatedAtTime` alongside `dcterms:created` |
 | `kg.derivedFrom: [path-or-url]` | `prov:wasDerivedFrom` (unresolved paths surface as `dockg:brokenLink`) |
 | `kg.revisionOf: [path-or-url]` | `prov:wasRevisionOf` — this doc supersedes an earlier one (same resolution rules as `derivedFrom`) |
@@ -123,6 +123,14 @@ commit stay byte-identical.
 Provenance node fragments use `.` separators (`#prov.generation`,
 `#prov.kg-fill.{model}`), which heading slugs can never produce — a
 `## Generation` section can't collide with the generation activity.
+
+**Agent IRIs are segmented by kind** — `{base}agent/person/{slug}`,
+`{base}agent/software/{slug}`, and `{base}agent/org/{slug}`, mirroring PROV-O's
+three `prov:Agent` subclasses. Without the segment, a human author named
+"GPT 4" and a `generatedBy: gpt-4` model would slug alike and merge into one
+node typed both `prov:Person` and `prov:SoftwareAgent`. Two people who share a
+name still converge, exactly as two identical concept labels do — dockg has no
+other information to tell them apart.
 
 `dockg fill` records `kg.provenance` entries — one `{generatedBy, fields}`
 entry **per model**, so multi-model fills keep truthful attribution — on every doc it

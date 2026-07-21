@@ -7,6 +7,7 @@ import type { DocModel } from "../types.js";
 import type { DeriveSource } from "./config.js";
 import type { GitHistory } from "./git.js";
 import { hasScheme, resolveRelative } from "./analyze.js";
+import type { AgentKind } from "./iri.js";
 import {
   conceptSlug,
   encodeSegment,
@@ -107,6 +108,15 @@ function fmValue(fm: Record<string, unknown>, keys: string[]): unknown {
   return undefined;
 }
 
+/** PROV-O's three prov:Agent subclasses, and their IRI path segments. */
+type ProvAgentClass = "Person" | "Organization" | "SoftwareAgent";
+
+const AGENT_KIND: Record<ProvAgentClass, AgentKind> = {
+  Person: "person",
+  Organization: "org",
+  SoftwareAgent: "software",
+};
+
 /** The `kg` sub-map of frontmatter, or undefined. */
 function kgObject(fm: Record<string, unknown>): Record<string, unknown> | undefined {
   const kg = fm["kg"];
@@ -150,9 +160,13 @@ export function deriveGraph(docs: DocModel[], options: DeriveOptions): Quad[] {
   const docByPath = new Map(docs.map((d) => [normalizeDocPath(d.path), d]));
   const prov = sources.has("provenance");
 
-  /** Agent node (person or software agent); dedupe converges repeats. */
-  const agentNode = (name: string, type: "Person" | "SoftwareAgent"): string => {
-    const a = mintAgentIri(baseIri, name);
+  /**
+   * Agent node; dedupe converges repeats of the same name AND kind. The IRI
+   * is segmented by kind (`agent/person/…`, `agent/software/…`) so a human
+   * and a model whose names slug alike stay distinct nodes.
+   */
+  const agentNode = (name: string, type: ProvAgentClass): string => {
+    const a = mintAgentIri(baseIri, AGENT_KIND[type], name);
     add(a, RDF_TYPE, iri(`${NS.prov}${type}`));
     add(a, `${NS.foaf}name`, lit(name));
     return a;
