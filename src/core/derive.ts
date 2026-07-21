@@ -336,8 +336,8 @@ function quadKey(q: Quad): string {
   const o =
     q.o.kind === "iri"
       ? `i:${q.o.value}`
-      : `l:${q.o.value} ${q.o.datatype ?? ""}`;
-  return `${q.s} ${q.p} ${o}`;
+      : `l:${q.o.value}|${q.o.datatype ?? ""}`;
+  return `${q.s}|${q.p}|${o}`;
 }
 
 function dedupe(quads: Quad[]): Quad[] {
