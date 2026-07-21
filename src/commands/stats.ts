@@ -55,10 +55,10 @@ export function runStats(opts: StatsOptions = {}): StatsReport {
 
   const docIris = subjectsOfType(store, `${NS.dockg}Document`);
   const docSet = new Set(docIris);
-  const pathOf = new Map<string, string>();
-  for (const doc of docIris) {
-    const path = store.getQuads(namedNode(doc), namedNode(`${NS.dockg}path`), null, null)[0];
-    pathOf.set(doc, path ? path.object.value : doc);
+  // One indexed scan for all paths instead of a per-doc lookup.
+  const pathOf = new Map<string, string>(docIris.map((d) => [d, d]));
+  for (const quad of store.getQuads(null, namedNode(`${NS.dockg}path`), null, null)) {
+    pathOf.set(quad.subject.value, quad.object.value);
   }
 
   const refQuads = store.getQuads(null, namedNode(`${NS.dcterms}references`), null, null);

@@ -23,7 +23,7 @@ export function normalizeDocPath(p: string): string {
 }
 
 /** RFC 3986 strict percent-encoding of one path segment (UTF-8 for non-ASCII). */
-function encodeSegment(segment: string): string {
+export function encodeSegment(segment: string): string {
   return encodeURIComponent(segment).replace(
     /[!'()*]/g,
     (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`,

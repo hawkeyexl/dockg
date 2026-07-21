@@ -64,6 +64,8 @@ export interface DockgConfig {
     /** Env var NAME holding the API key; null = provider default. */
     apiKeyEnv: string | null;
     baseUrl: string;
+    /** Executable for the claude-cli provider. */
+    command: string;
     temperature: number;
     maxCostUsd: number | null;
     cacheDir: string;
@@ -86,6 +88,10 @@ export const ALL_DERIVE_SOURCES: DeriveSource[] = [
   "images",
   "code",
 ];
+
+/** Default candidates for extensionless link targets (routes AND relative links). */
+export const DEFAULT_LINK_EXTENSIONS = [".md", ".mdx"];
+export const DEFAULT_INDEX_FILES = ["index", "README"];
 
 /** `/docs/` -> `/docs`; `/` or `` -> `` (site root). */
 function normalizeBasePath(basePath: string): string {
@@ -131,8 +137,8 @@ export function parseConfig(text: string, configPath: string): DockgConfig {
     routes: ((r.routes ?? []) as Array<Record<string, any>>).map((m) => ({
       basePath: normalizeBasePath(m.basePath ?? "/"),
       root: String(m.root).replace(/\\/g, "/").replace(/^\.\//, "").replace(/\/+$/, ""),
-      extensions: m.extensions ?? [".md", ".mdx"],
-      indexFiles: m.indexFiles ?? ["index", "README"],
+      extensions: m.extensions ?? [...DEFAULT_LINK_EXTENSIONS],
+      indexFiles: m.indexFiles ?? [...DEFAULT_INDEX_FILES],
     })),
     build: {
       derive: r.build?.derive ?? [...ALL_DERIVE_SOURCES],
@@ -145,6 +151,7 @@ export function parseConfig(text: string, configPath: string): DockgConfig {
       model: r.fill?.model ?? null,
       apiKeyEnv: r.fill?.apiKeyEnv ?? null,
       baseUrl: r.fill?.baseUrl ?? "https://api.openai.com/v1",
+      command: r.fill?.command ?? "claude",
       temperature: r.fill?.temperature ?? 0,
       maxCostUsd: r.fill?.maxCostUsd === undefined ? 5 : r.fill.maxCostUsd,
       cacheDir: r.fill?.cacheDir ?? ".dockg/cache",

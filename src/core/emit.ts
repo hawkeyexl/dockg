@@ -19,8 +19,8 @@ const SAFE_LOCAL = /^[A-Za-z_][A-Za-z0-9_-]*$/;
  * (controls, space, <>"{}|^` and backslash) so output always parses,
  * whatever made it into a node value.
  */
-// <>"{}|^ plus backtick (96) and backslash (92) — forbidden by IRIREF.
-const ILLEGAL_IRI_CHARS = '<>"{}|^' + String.fromCharCode(96, 92);
+// Forbidden by IRIREF: <>"{}|^ plus backtick and backslash.
+const ILLEGAL_IRI_CHARS = '<>"{}|^\x60\x5c';
 
 function sanitizeIri(iriValue: string): string {
   let out = "";
@@ -34,14 +34,25 @@ function sanitizeIri(iriValue: string): string {
   return out;
 }
 
+/** Memo: the same predicates/objects recur once per quad; shorten each once. */
+const shortenMemo = new Map<string, string>();
+
 function shorten(iriValue: string): string {
+  const memoized = shortenMemo.get(iriValue);
+  if (memoized !== undefined) return memoized;
+  let result: string | undefined;
   for (const [prefix, ns] of PREFIXES) {
     if (iriValue.startsWith(ns)) {
       const local = iriValue.slice(ns.length);
-      if (SAFE_LOCAL.test(local)) return `${prefix}:${local}`;
+      if (SAFE_LOCAL.test(local)) {
+        result = `${prefix}:${local}`;
+        break;
+      }
     }
   }
-  return `<${sanitizeIri(iriValue)}>`;
+  result ??= `<${sanitizeIri(iriValue)}>`;
+  shortenMemo.set(iriValue, result);
+  return result;
 }
 
 function escapeLiteral(value: string): string {

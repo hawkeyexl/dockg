@@ -146,6 +146,21 @@ describe("analyzeDoc — links", () => {
     ]);
   });
 
+  it("does not crash on malformed percent-encodings (stray %)", () => {
+    const doc = analyzeDoc(
+      "[sale](50%-off.md) [also](file%zz.md)\n",
+      "docs/intro.md",
+      new Set(["docs/intro.md", "docs/50%-off.md"]),
+    );
+    // raw form is used when decoding fails; exact corpus match still works
+    expect(doc.links[0]).toEqual({
+      raw: "50%-off.md",
+      kind: "internal",
+      resolvedPath: "docs/50%-off.md",
+    });
+    expect(doc.links[1]).toEqual({ raw: "file%zz.md", kind: "broken" });
+  });
+
   it("marks links escaping the root as broken", () => {
     const doc = analyzeDoc("[out](../../outside.md)\n", "docs/intro.md", ALL);
     expect(doc.links).toEqual([{ raw: "../../outside.md", kind: "broken" }]);
@@ -227,6 +242,36 @@ describe("analyzeDoc — route mapping", () => {
       { raw: "/docs/actions/closesurface", kind: "internal", resolvedPath: "docs/pages/actions/closeSurface.mdx" },
       { raw: "/docs/actions/stop-record", kind: "internal", resolvedPath: "docs/pages/actions/stopRecord.mdx" },
     ]);
+  });
+
+  it("decodes percent-encoded routes before matching", () => {
+    const doc = analyzeDoc(
+      "[x](/docs/getting%20started)\n",
+      "docs/linker.md",
+      new Set(["docs/pages/getting started.mdx", "docs/linker.md"]),
+      { routes },
+    );
+    expect(doc.links).toEqual([
+      {
+        raw: "/docs/getting%20started",
+        kind: "internal",
+        resolvedPath: "docs/pages/getting started.mdx",
+      },
+    ]);
+  });
+
+  it("treats trailing-slash routes as directories (index files only)", () => {
+    // both guide.mdx and guide/index.mdx exist: /docs/guide/ must pick the index
+    const both = new Set([
+      "docs/pages/guide.mdx",
+      "docs/pages/guide/index.mdx",
+      "docs/linker.md",
+    ]);
+    const doc = analyzeDoc("[dir](/docs/guide/) [page](/docs/guide)\n", "docs/linker.md", both, {
+      routes,
+    });
+    expect(doc.links[0]).toMatchObject({ resolvedPath: "docs/pages/guide/index.mdx" });
+    expect(doc.links[1]).toMatchObject({ resolvedPath: "docs/pages/guide.mdx" });
   });
 
   it("resolves the bare basePath itself to the root index", () => {

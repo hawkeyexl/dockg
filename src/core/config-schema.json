@@ -62,6 +62,7 @@
         "model": { "type": "string", "minLength": 1 },
         "apiKeyEnv": { "type": "string", "minLength": 1 },
         "baseUrl": { "type": "string", "minLength": 1 },
+        "command": { "type": "string", "minLength": 1 },
         "temperature": { "type": "number", "minimum": 0, "maximum": 2 },
         "maxCostUsd": { "type": ["number", "null"], "minimum": 0 },
         "cacheDir": { "type": "string", "minLength": 1 },

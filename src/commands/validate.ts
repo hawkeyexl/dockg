@@ -3,14 +3,17 @@
  * programmatic API, validating discovered docs against the schemas in
  * config `validate.schemas` (default: the dockg:frontmatter:0.1 built-in).
  */
+import { extname } from "node:path";
 import {
   runValidate as docmetaValidate,
   render,
+  supportedExtensions,
   type ReportFormat,
   type ValidateRun,
 } from "docmeta";
 import { DockgError } from "../types.js";
 import { loadConfig } from "../core/config.js";
+import { discoverFiles } from "../core/discover.js";
 
 export interface ValidateOptions {
   globs?: string[];
@@ -30,12 +33,31 @@ export async function runValidate(
   const config = loadConfig(opts.config, cwd);
   const inputs = opts.globs && opts.globs.length > 0 ? opts.globs : config.inputs;
 
+  // Discover with the SAME mechanism as `dockg build`, then hand docmeta the
+  // explicit file list — validate must cover exactly the corpus build ingests
+  // (docmeta's own glob expansion filters extensions and merges excludes from
+  // any docmeta.config.yaml, which would silently shrink the corpus).
+  const files = discoverFiles(inputs, config.exclude, cwd);
+  if (files.length === 0) {
+    throw new DockgError(
+      `No input files matched: ${inputs.join(", ")} (cwd: ${cwd})`,
+    );
+  }
+  const supported = new Set(supportedExtensions());
+  const unsupported = files.filter((f) => !supported.has(extname(f).toLowerCase()));
+  if (unsupported.length > 0) {
+    throw new DockgError(
+      `dockg build would ingest file types docmeta cannot validate: ${unsupported
+        .slice(0, 5)
+        .join(", ")}${unsupported.length > 5 ? ", …" : ""} — narrow your inputs globs.`,
+    );
+  }
+
   let run: ValidateRun;
   try {
     run = await docmetaValidate({
-      inputs,
+      inputs: files,
       cliSchemas: config.validate.schemas,
-      exclude: config.exclude,
       cwd,
     });
   } catch (e) {

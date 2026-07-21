@@ -2,7 +2,8 @@
  * `dockg fill` — propose SKOS frontmatter fields (`kg:` sub-key) with an LLM
  * and write them back. Single-shot structured output per doc, content-hash
  * cached, cost-budgeted. Human-set fields are never overwritten without
- * `--force`; `--dry-run` reports without writing.
+ * `--force`; `--dry-run` reports without writing. Any per-doc failure is
+ * recorded as a result, never aborts the run.
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -10,12 +11,16 @@ import { Ajv2020 } from "ajv/dist/2020.js";
 import { analyzeDoc } from "../core/analyze.js";
 import { loadConfig, type FillField } from "../core/config.js";
 import { discoverFiles } from "../core/discover.js";
-import { applyKgFields, existingKgFields } from "../core/frontmatter-edit.js";
+import {
+  applyKgFields,
+  existingKgFields,
+  frontmatterKind,
+} from "../core/frontmatter-edit.js";
 import { DockgError } from "../types.js";
 import { FillCache, cacheKey } from "../llm/cache.js";
 import { costOfUsage, pricingFor } from "../llm/cost.js";
 import { SYSTEM_PROMPT, buildUserPrompt, proposalSchema } from "../llm/prompt.js";
-import { makeProvider } from "../llm/providers/index.js";
+import { makeProvider, resolveProviderIdentity } from "../llm/providers/index.js";
 import type { LlmProvider } from "../llm/types.js";
 
 export interface FillOptions {
@@ -59,6 +64,9 @@ export interface FillReport {
 
 const ajv = new Ajv2020({ allErrors: true });
 
+/** SKOS relation fields that require a prefLabel to attach to. */
+const RELATION_FIELDS = ["altLabels", "broader", "narrower", "related"] as const;
+
 export async function runFill(opts: FillOptions = {}): Promise<FillReport> {
   const cwd = opts.cwd ?? process.cwd();
   const config = loadConfig(opts.config, cwd);
@@ -69,17 +77,29 @@ export async function runFill(opts: FillOptions = {}): Promise<FillReport> {
     throw new DockgError(`No input files matched: ${inputs.join(", ")} (cwd: ${cwd})`);
   }
 
-  const provider =
-    opts.providerInstance ??
-    makeProvider(config, { provider: opts.provider, model: opts.model });
+  // Identity (for cache keys and pricing) is resolvable without constructing
+  // the provider; construction — which may demand an API key — is deferred to
+  // the first actual LLM call, so complete/cached runs need no credentials.
+  const identity = opts.providerInstance
+    ? {
+        provider: opts.providerInstance.provider(),
+        model: opts.providerInstance.modelName(),
+      }
+    : resolveProviderIdentity(config, {
+        provider: opts.provider,
+        model: opts.model,
+      });
+  let provider: LlmProvider | undefined = opts.providerInstance;
+  const getProvider = (): LlmProvider =>
+    (provider ??= makeProvider(config, {
+      provider: opts.provider,
+      model: opts.model,
+    }));
+
   const fields = config.fill.fields;
-  const schema = proposalSchema(fields);
-  const validateProposal = ajv.compile(schema);
-  const cache = new FillCache(
-    resolve(cwd, config.fill.cacheDir),
-    !opts.noCache,
-  );
-  const pricing = pricingFor(provider.modelName(), config.fill.pricing);
+  const validateProposal = ajv.compile(proposalSchema(fields));
+  const cache = new FillCache(resolve(cwd, config.fill.cacheDir), !opts.noCache);
+  const pricing = pricingFor(identity.model, config.fill.pricing);
   const maxCostUsd = opts.maxCost ?? config.fill.maxCostUsd;
 
   const allPaths = new Set(files);
@@ -87,99 +107,116 @@ export async function runFill(opts: FillOptions = {}): Promise<FillReport> {
   let costUsd = 0;
 
   for (const path of files) {
+    try {
+      results.push(await fillOne(path));
+    } catch (e) {
+      results.push({
+        path,
+        status: "error",
+        fields: [],
+        preserved: [],
+        cached: false,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+  }
+
+  const hasErrors = results.some((r) => r.status === "error");
+  return { results, costUsd, exitCode: hasErrors ? 1 : 0 };
+
+  async function fillOne(path: string): Promise<FillDocResult> {
     const absPath = resolve(cwd, path);
     const content = readFileSync(absPath, "utf8");
 
+    if (frontmatterKind(content) === "unsupported") {
+      throw new DockgError(
+        "only YAML frontmatter can be edited (found a TOML/JSON fence) — exclude this file or convert its frontmatter",
+      );
+    }
+
     const present = new Set(existingKgFields(content));
-    const missing = opts.force
-      ? fields
-      : fields.filter((f) => !present.has(f));
+    const missing = opts.force ? fields : fields.filter((f) => !present.has(f));
     if (missing.length === 0) {
-      results.push({ path, status: "complete", fields: [], preserved: [], cached: false });
-      continue;
+      return { path, status: "complete", fields: [], preserved: [], cached: false };
     }
 
     if (maxCostUsd !== null && costUsd >= maxCostUsd) {
-      results.push({
+      return {
         path,
         status: "skipped-budget",
         fields: [],
         preserved: [],
         cached: false,
-      });
-      continue;
+      };
     }
 
-    const key = cacheKey(
-      provider.provider(),
-      provider.modelName(),
-      content,
-      missing as FillField[],
-    );
+    const key = cacheKey(identity.provider, identity.model, content, missing);
+    // Cached proposals are validated too: a stale or hand-edited cache entry
+    // must not bypass the schema (treat invalid entries as a miss).
     let proposal = cache.get(key);
-    let cached = proposal !== undefined;
+    if (proposal !== undefined && !validateProposal(proposal)) {
+      proposal = undefined;
+    }
+    const cached = proposal !== undefined;
 
-    if (!proposal) {
+    if (proposal === undefined) {
       const doc = analyzeDoc(content, path, allPaths, { routes: config.routes });
-      try {
-        const response = await provider.completeJSON({
-          system: SYSTEM_PROMPT,
-          user: buildUserPrompt(doc, content, missing as FillField[]),
-          schema: proposalSchema(missing as FillField[]),
-          temperature: config.fill.temperature,
-        });
-        costUsd += costOfUsage(response.usage, pricing);
-        if (!validateProposal(response.json)) {
-          const details = (validateProposal.errors ?? [])
-            .map((e) => `${e.instancePath || "/"}: ${e.message}`)
-            .join("; ");
-          throw new Error(`Proposal failed schema validation: ${details}`);
-        }
-        proposal = response.json as Record<string, unknown>;
-        cache.set(key, proposal);
-      } catch (e) {
-        results.push({
-          path,
-          status: "error",
-          fields: [],
-          preserved: [],
-          cached: false,
-          error: e instanceof Error ? e.message : String(e),
-        });
-        continue;
+      const response = await getProvider().completeJSON({
+        system: SYSTEM_PROMPT,
+        user: buildUserPrompt(doc, content, missing),
+        schema: proposalSchema(missing),
+        temperature: config.fill.temperature,
+      });
+      costUsd += costOfUsage(response.usage, pricing);
+      if (!validateProposal(response.json)) {
+        const details = (validateProposal.errors ?? [])
+          .map((e) => `${e.instancePath || "/"}: ${e.message}`)
+          .join("; ");
+        throw new Error(`Proposal failed schema validation: ${details}`);
       }
-      cached = false;
+      proposal = response.json as Record<string, unknown>;
+      cache.set(key, proposal);
     }
 
-    // Only requested fields survive, even if the cache or provider offered more.
+    // Only requested fields survive, even if the cache or provider offered
+    // more; string arrays are deduplicated (the 0.1 schema enforces
+    // uniqueItems on what we write).
     const narrowed = Object.fromEntries(
-      Object.entries(proposal).filter(([k]) => missing.includes(k as FillField)),
+      Object.entries(proposal)
+        .filter(([k]) => missing.includes(k as FillField))
+        .map(([k, v]) => [k, Array.isArray(v) ? [...new Set(v)] : v]),
     );
+
+    // The 0.1 schema requires prefLabel alongside any label/relation field
+    // (dependentRequired) — never write output our own validate rejects.
+    const willHavePrefLabel =
+      present.has("prefLabel") ||
+      (typeof narrowed["prefLabel"] === "string" && narrowed["prefLabel"].length > 0);
+    if (!willHavePrefLabel) {
+      for (const field of RELATION_FIELDS) delete narrowed[field];
+    }
+
     const applied = applyKgFields(content, path, narrowed, { force: opts.force });
 
     if (applied.applied.length === 0) {
-      results.push({
+      return {
         path,
         status: "nothing-proposed",
         fields: [],
         preserved: applied.skipped,
         cached,
-      });
-      continue;
+      };
     }
 
     if (!opts.dryRun) writeFileSync(absPath, applied.content, "utf8");
-    results.push({
+    return {
       path,
       status: opts.dryRun ? "proposed" : "filled",
       fields: applied.applied,
       preserved: applied.skipped,
       cached,
-    });
+    };
   }
-
-  const hasErrors = results.some((r) => r.status === "error");
-  return { results, costUsd, exitCode: hasErrors ? 1 : 0 };
 }
 
 export function renderFill(report: FillReport, format: "pretty" | "json"): string {

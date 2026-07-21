@@ -19,13 +19,26 @@ const DEFAULT_MODELS: Record<string, string> = {
   mock: "mock-model",
 };
 
+/**
+ * Resolve the provider name and model WITHOUT constructing the provider —
+ * cache keys and pricing need the identity, but construction may require an
+ * API key that a fully-cached/complete run never uses.
+ */
+export function resolveProviderIdentity(
+  config: DockgConfig,
+  options: ProviderOptions = {},
+): { provider: string; model: string } {
+  const provider = options.provider ?? config.fill.provider;
+  const model =
+    options.model ?? config.fill.model ?? DEFAULT_MODELS[provider] ?? "unknown";
+  return { provider, model };
+}
+
 export function makeProvider(
   config: DockgConfig,
   options: ProviderOptions = {},
 ): LlmProvider {
-  const name = options.provider ?? config.fill.provider;
-  const model =
-    options.model ?? config.fill.model ?? DEFAULT_MODELS[name] ?? "unknown";
+  const { provider: name, model } = resolveProviderIdentity(config, options);
 
   switch (name) {
     case "anthropic":
@@ -40,7 +53,7 @@ export function makeProvider(
         config.fill.apiKeyEnv ?? "OPENAI_API_KEY",
       );
     case "claude-cli":
-      return new ClaudeCliProvider(model);
+      return new ClaudeCliProvider(model, config.fill.command);
     case "mock":
       // Offline smoke-testing seam: proposes nothing.
       return new MockProvider([{ json: {} }]);

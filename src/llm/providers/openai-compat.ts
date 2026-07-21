@@ -35,6 +35,54 @@ export function extractJson(content: string): unknown {
   }
 }
 
+/**
+ * OpenAI strict mode requires `required` to list EVERY property (optionality
+ * is expressed as a `null` type union) and rejects keywords outside its
+ * subset (minLength, uniqueItems). Transform our all-optional schema into a
+ * strict-compatible equivalent; null values are stripped from the response.
+ */
+export function toStrictSchema(
+  schema: Record<string, unknown>,
+): Record<string, unknown> {
+  const clone = structuredClone(schema);
+  const walk = (node: unknown): void => {
+    if (node === null || typeof node !== "object") return;
+    if (Array.isArray(node)) {
+      for (const item of node) walk(item);
+      return;
+    }
+    const obj = node as Record<string, unknown>;
+    delete obj["minLength"];
+    delete obj["uniqueItems"];
+    const properties = obj["properties"];
+    if (properties && typeof properties === "object") {
+      obj["required"] = Object.keys(properties);
+      for (const prop of Object.values(properties as Record<string, unknown>)) {
+        walk(prop);
+        if (prop && typeof prop === "object" && !Array.isArray(prop)) {
+          const p = prop as Record<string, unknown>;
+          if (typeof p["type"] === "string" && p["type"] !== "null") {
+            p["type"] = [p["type"], "null"];
+          }
+        }
+      }
+    }
+    walk(obj["items"]);
+  };
+  walk(clone);
+  return clone;
+}
+
+/** Remove null-valued keys (strict-mode "omitted" marker) from a response object. */
+function stripNulls(value: unknown): unknown {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return value;
+  }
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).filter(([, v]) => v !== null),
+  );
+}
+
 export class OpenAICompatProvider implements LlmProvider {
   private supportsJsonSchema = true;
 
@@ -97,12 +145,20 @@ export class OpenAICompatProvider implements LlmProvider {
           ...base,
           response_format: {
             type: "json_schema",
-            json_schema: { name: "proposal", strict: true, schema: req.schema },
+            json_schema: {
+              name: "proposal",
+              strict: true,
+              schema: toStrictSchema(req.schema),
+            },
           },
         });
       } catch (e) {
         const message = e instanceof Error ? e.message : String(e);
-        if (!/response_format|json_schema/i.test(message)) throw e;
+        // Fall back on schema/format complaints AND on opaque 400s (gateways
+        // that reject response_format without a parseable error body).
+        if (!/response_format|json_schema|schema/i.test(message) && message !== "HTTP 400") {
+          throw e;
+        }
         this.supportsJsonSchema = false;
         response = await this.jsonObjectFallback(base, req);
       }
@@ -113,7 +169,7 @@ export class OpenAICompatProvider implements LlmProvider {
     const content = response.choices?.[0]?.message?.content;
     if (!content) throw new Error("Empty completion response");
     return {
-      json: extractJson(content),
+      json: stripNulls(extractJson(content)),
       usage:
         response.usage?.prompt_tokens != null
           ? {

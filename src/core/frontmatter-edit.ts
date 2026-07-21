@@ -19,6 +19,18 @@ interface Split {
   eol: "\n" | "\r\n";
 }
 
+/**
+ * What kind of frontmatter block a file opens with. docmeta reads TOML (+++)
+ * and JSON (;;;) fences too, but only YAML is editable in place — callers
+ * must not treat "unsupported" as "absent" or they will stack a second block.
+ */
+export function frontmatterKind(content: string): "yaml" | "unsupported" | "none" {
+  const body = content.charCodeAt(0) === 0xfeff ? content.slice(1) : content;
+  if (/^---(\r?\n)/.test(body)) return "yaml";
+  if (/^(\+\+\+|;;;)(\r?\n)/.test(body)) return "unsupported";
+  return "none";
+}
+
 function splitYamlFrontmatter(content: string, path: string): Split | null {
   const bom = content.charCodeAt(0) === 0xfeff ? content[0]! : "";
   const body = bom ? content.slice(1) : content;
@@ -73,6 +85,12 @@ export function applyKgFields(
     ([, v]) => v !== undefined && v !== null && !(Array.isArray(v) && v.length === 0),
   );
   if (entries.length === 0) return { content, applied: [], skipped: [] };
+
+  if (frontmatterKind(content) === "unsupported") {
+    throw new DockgError(
+      `${path}: only YAML frontmatter can be edited (found a TOML/JSON fence)`,
+    );
+  }
 
   const split = splitYamlFrontmatter(content, path);
 

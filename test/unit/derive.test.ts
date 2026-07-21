@@ -71,6 +71,15 @@ describe("deriveGraph — document basics", () => {
     expect(has(g, DOC, `${NS.dcterms}language`, lit("en"))).toBe(true);
   });
 
+  it("serializes Date frontmatter values as ISO 8601 (TOML frontmatter)", () => {
+    const g = graph({
+      "docs/a.md": "+++\ntitle = \"T\"\ndate = 2024-01-05T10:00:00Z\n+++\n",
+    });
+    expect(
+      has(g, DOC, `${NS.dcterms}created`, lit("2024-01-05T10:00:00.000Z", `${NS.xsd}dateTime`)),
+    ).toBe(true);
+  });
+
   it("supports authors arrays", () => {
     const g = graph({ "docs/a.md": "---\nauthors: [Jane, Sam]\n---\n" });
     expect(has(g, DOC, `${NS.dcterms}creator`, lit("Jane"))).toBe(true);

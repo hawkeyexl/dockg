@@ -19,26 +19,31 @@ const FIELD_SCHEMAS: Record<FillField, Record<string, unknown>> = {
   altLabels: {
     type: "array",
     items: { type: "string", minLength: 1 },
+    uniqueItems: true,
     description: "Alternative labels: synonyms, abbreviations, common variants.",
   },
   broader: {
     type: "array",
     items: { type: "string", minLength: 1 },
+    uniqueItems: true,
     description: "Labels of broader (parent) concepts.",
   },
   narrower: {
     type: "array",
     items: { type: "string", minLength: 1 },
+    uniqueItems: true,
     description: "Labels of narrower (child) concepts.",
   },
   related: {
     type: "array",
     items: { type: "string", minLength: 1 },
+    uniqueItems: true,
     description: "Labels of associatively related concepts.",
   },
   subjects: {
     type: "array",
     items: { type: "string", minLength: 1 },
+    uniqueItems: true,
     description: "Subject labels for the document, like tags.",
   },
 };

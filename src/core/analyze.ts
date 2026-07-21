@@ -13,7 +13,11 @@ import GithubSlugger from "github-slugger";
 import { extractFrontmatter } from "docmeta";
 import type { Root, Content, Definition } from "mdast";
 import type { DocImage, DocLink, DocModel, Section } from "../types.js";
-import type { RouteMapping } from "./config.js";
+import {
+  DEFAULT_INDEX_FILES,
+  DEFAULT_LINK_EXTENSIONS,
+  type RouteMapping,
+} from "./config.js";
 import { normalizeDocPath } from "./iri.js";
 
 export interface AnalyzeOptions {
@@ -88,6 +92,40 @@ class PathIndex {
   }
 }
 
+/** decodeURIComponent that falls back to the raw string on malformed input. */
+function safeDecode(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+/**
+ * Candidate repo paths for an extensionless (or extension-bearing) link
+ * target. Shared by route and relative resolution so both link forms resolve
+ * identically: an explicit extension is taken verbatim; a trailing slash
+ * means "directory" (index files only); otherwise extensions are tried
+ * before index files.
+ */
+function targetCandidates(
+  target: string,
+  isDirectory: boolean,
+  extensions: string[],
+  indexFiles: string[],
+): string[] {
+  if (target !== "" && HAS_EXTENSION.test(target)) return [target];
+  const candidates: string[] = [];
+  if (target !== "" && !isDirectory) {
+    for (const ext of extensions) candidates.push(`${target}${ext}`);
+  }
+  const dir = target === "" ? "" : `${target}/`;
+  for (const indexFile of indexFiles) {
+    for (const ext of extensions) candidates.push(`${dir}${indexFile}${ext}`);
+  }
+  return candidates;
+}
+
 /**
  * Resolve a root-absolute route (`/docs/actions/find`) to a source file via
  * the configured mappings. Returns the repo path, "broken" when a mapping's
@@ -99,7 +137,8 @@ function resolveRoute(
   routes: RouteMapping[],
   index: PathIndex,
 ): string | "broken" | null {
-  const clean = pathPart.replace(/\/+$/, "");
+  const isDirectory = /\/+$/.test(pathPart);
+  const clean = safeDecode(pathPart).replace(/\/+$/, "");
   let anyMatched = false;
   for (const mapping of routes) {
     if (clean !== mapping.basePath && !clean.startsWith(`${mapping.basePath}/`)) {
@@ -108,19 +147,14 @@ function resolveRoute(
     anyMatched = true;
     const rest = clean.slice(mapping.basePath.length).replace(/^\/+/, "");
     const prefix = mapping.root ? `${mapping.root}/` : "";
-
-    const candidates: string[] = [];
-    if (rest !== "" && HAS_EXTENSION.test(rest)) {
-      candidates.push(`${prefix}${rest}`);
-    } else {
-      if (rest !== "") {
-        for (const ext of mapping.extensions) candidates.push(`${prefix}${rest}${ext}`);
-      }
-      const dir = rest === "" ? prefix : `${prefix}${rest}/`;
-      for (const indexFile of mapping.indexFiles) {
-        for (const ext of mapping.extensions) candidates.push(`${dir}${indexFile}${ext}`);
-      }
-    }
+    // Bare basePath targets the root directory itself (index files only).
+    const stem = rest === "" ? mapping.root : `${prefix}${rest}`;
+    const candidates = targetCandidates(
+      stem,
+      isDirectory || rest === "",
+      mapping.extensions,
+      mapping.indexFiles,
+    );
     for (const candidate of candidates) {
       const resolved = index.resolve(candidate);
       if (resolved) return resolved;
@@ -171,25 +205,21 @@ function classifyLink(
     if (anchor) link.anchor = anchor;
     return link;
   }
-  const resolved = resolveRelative(docPath, decodeURIComponent(pathPart));
+  const resolved = resolveRelative(docPath, safeDecode(pathPart));
   if (resolved !== null) {
     const index = pathIndexFor(allPaths);
-    const hadTrailingSlash = pathPart.endsWith("/");
-    const candidates: string[] = [];
+    let candidates: string[];
     if (allPaths.has(resolved)) {
-      candidates.push(resolved);
-    } else if (!HAS_EXTENSION.test(resolved)) {
-      // Extensionless relative links are route-style: try extensions, then
-      // index files for directory targets.
-      if (!hadTrailingSlash) {
-        for (const ext of DEFAULT_LINK_EXTENSIONS) candidates.push(`${resolved}${ext}`);
-      }
-      const dir = resolved === "" ? "" : `${resolved}/`;
-      for (const indexFile of DEFAULT_INDEX_FILES) {
-        for (const ext of DEFAULT_LINK_EXTENSIONS) {
-          candidates.push(`${dir}${indexFile}${ext}`);
-        }
-      }
+      candidates = [resolved];
+    } else if (HAS_EXTENSION.test(resolved)) {
+      candidates = []; // extension-bearing relative links are exact-or-broken
+    } else {
+      candidates = targetCandidates(
+        resolved,
+        pathPart.endsWith("/"),
+        DEFAULT_LINK_EXTENSIONS,
+        DEFAULT_INDEX_FILES,
+      );
     }
     for (const candidate of candidates) {
       const hit = index.resolve(candidate);
@@ -202,9 +232,6 @@ function classifyLink(
   }
   return { raw, kind: "broken" };
 }
-
-const DEFAULT_LINK_EXTENSIONS = [".md", ".mdx"];
-const DEFAULT_INDEX_FILES = ["index", "README"];
 
 function classifyImage(
   docPath: string,

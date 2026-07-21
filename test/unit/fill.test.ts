@@ -106,6 +106,82 @@ describe("runFill", () => {
     expect(report.exitCode).toBe(1);
   });
 
+  it("reports TOML-frontmatter docs as per-doc errors without corrupting them", async () => {
+    const toml = '+++\ntitle = "Hugo"\n+++\n\n# Hugo doc\n';
+    const dir = setup({ "a.md": toml, "b.md": "---\ntitle: OK\n---\n" });
+    const provider = new MockProvider([{ json: PROPOSAL }]);
+    const report = await runFill({ cwd: dir, providerInstance: provider });
+    const a = report.results.find((r) => r.path === "a.md");
+    expect(a).toMatchObject({ status: "error" });
+    expect(a?.error).toMatch(/YAML frontmatter/);
+    expect(readFileSync(join(dir, "a.md"), "utf8")).toBe(toml); // untouched
+    // the rest of the run continued
+    expect(report.results.find((r) => r.path === "b.md")).toMatchObject({
+      status: "filled",
+    });
+    expect(report.exitCode).toBe(1);
+  });
+
+  it("contains per-doc frontmatter errors instead of aborting the run", async () => {
+    const dir = setup({
+      "a.md": "---\ntitle: unterminated\n", // no closing fence
+      "b.md": "---\nkg: not-a-map\n---\n",
+      "c.md": "---\ntitle: fine\n---\n",
+    });
+    const provider = new MockProvider([{ json: PROPOSAL }]);
+    const report = await runFill({ cwd: dir, providerInstance: provider });
+    const statuses = Object.fromEntries(report.results.map((r) => [r.path, r.status]));
+    expect(statuses["a.md"]).toBe("error");
+    expect(statuses["b.md"]).toBe("error");
+    expect(statuses["c.md"]).toBe("filled");
+  });
+
+  it("needs no provider credentials when every doc is complete", async () => {
+    const dir = setup(
+      { "a.md": "---\nkg:\n  prefLabel: X\n---\n" },
+      "fill:\n  provider: anthropic\n  fields: [prefLabel]\n",
+    );
+    delete process.env["ANTHROPIC_API_KEY"];
+    // no providerInstance: the factory would throw if constructed eagerly
+    const report = await runFill({ cwd: dir });
+    expect(report.results[0]).toMatchObject({ status: "complete" });
+  });
+
+  it("re-asks the provider when a cached proposal is schema-invalid", async () => {
+    const dir = setup({ "a.md": "---\ntitle: T\n---\n" });
+    const good = new MockProvider([{ json: PROPOSAL }]);
+    await runFill({ cwd: dir, providerInstance: good, dryRun: true });
+    // corrupt the cache entry on disk
+    const cacheDir = join(dir, ".dockg", "cache");
+    const { readdirSync, writeFileSync: write } = await import("node:fs");
+    const entry = readdirSync(cacheDir)[0]!;
+    write(join(cacheDir, entry), JSON.stringify({ prefLabel: 42 }));
+    const second = new MockProvider([{ json: PROPOSAL }]);
+    const report = await runFill({ cwd: dir, providerInstance: second, dryRun: true });
+    expect(second.requests).toHaveLength(1); // cache invalid -> re-asked
+    expect(report.results[0]).toMatchObject({ status: "proposed", cached: false });
+  });
+
+  it("never writes relation fields without a prefLabel", async () => {
+    const dir = setup({ "a.md": "---\ntitle: T\n---\n" });
+    const provider = new MockProvider([
+      { json: { altLabels: ["x"], related: ["y"], subjects: ["s"] } },
+    ]);
+    const report = await runFill({ cwd: dir, providerInstance: provider });
+    // altLabels/related require prefLabel (0.1 dependentRequired) — dropped
+    expect(report.results[0]?.fields).toEqual(["subjects"]);
+    const written = readFileSync(join(dir, "a.md"), "utf8");
+    expect(written).not.toContain("altLabels");
+    expect(written).toContain("subjects: [ s ]");
+  });
+
+  it("rejects proposals with duplicate array entries (uniqueItems)", async () => {
+    const dir = setup({ "a.md": "---\ntitle: T\n---\n" });
+    const provider = new MockProvider([{ json: { subjects: ["s", "s"] } }]);
+    const report = await runFill({ cwd: dir, providerInstance: provider, noCache: true });
+    expect(report.results[0]).toMatchObject({ status: "error" });
+  });
+
   it("respects config fill.fields (asks only for missing, allowed fields)", async () => {
     const dir = setup(
       { "a.md": "---\nkg:\n  prefLabel: Kept\n---\n" },
