@@ -11,23 +11,8 @@ import { loadConfig } from "../core/config.js";
 import { deriveGraph } from "../core/derive.js";
 import { discoverFiles } from "../core/discover.js";
 import { emitTurtle } from "../core/emit.js";
+import { collectGitHistory } from "../core/git.js";
 import { toolVersion } from "../core/pkg.js";
-import { realExec } from "../llm/exec.js";
-
-/** HEAD committer date of the corpus repo — deterministic per commit. */
-async function gitHeadTime(cwd: string): Promise<string> {
-  const result = await realExec(["git", "log", "-1", "--format=%cI"], {
-    cwd,
-    timeoutMs: 15000,
-  });
-  const time = result.stdout.trim();
-  if (result.code !== 0 || time === "") {
-    throw new DockgError(
-      `provenance.gitTime is enabled but the HEAD committer date could not be read (is ${cwd} a git repo with at least one commit?)`,
-    );
-  }
-  return time;
-}
 
 export interface BuildOptions {
   /** Positional globs; override config `inputs` when non-empty. */
@@ -68,7 +53,8 @@ export async function runBuild(opts: BuildOptions = {}): Promise<BuildResult> {
     baseIri: config.baseIri,
     derive: config.build.derive,
     toolVersion: toolVersion(import.meta.url),
-    gitTime: config.provenance.gitTime ? await gitHeadTime(cwd) : undefined,
+    gitHistory: config.provenance.git ? await collectGitHistory(cwd) : undefined,
+    qualified: config.provenance.qualified,
   });
   const turtle = emitTurtle(quads);
 

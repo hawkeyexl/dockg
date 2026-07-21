@@ -56,11 +56,11 @@ describe("dockg build (integration)", () => {
     expect(stdout).toMatch(/4 docs, \d+ triples/);
   });
 
-  it("gitTime: errors loudly outside a git repo, is byte-stable inside one", () => {
+  it("provenance.git: errors loudly outside a git repo, is byte-stable inside one", () => {
     const dir = mkdtempSync(join(tmpdir(), "dockg-gittime-"));
     writeFileSync(
       join(dir, "dockg.config.yaml"),
-      'version: 1\ninputs: ["*.md"]\nprovenance:\n  gitTime: true\n',
+      'version: 1\ninputs: ["*.md"]\nprovenance:\n  git: true\n',
     );
     writeFileSync(join(dir, "a.md"), "# A\n");
 

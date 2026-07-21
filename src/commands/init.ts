@@ -30,14 +30,19 @@ out: kg/graph.ttl
 build:
   derive: [frontmatter, sections, links, tags, images, code, provenance]
 
-# PROV-O settings. gitTime stamps the build activity with the corpus repo's
-# HEAD committer date — deterministic per commit; wall-clock time never
-# enters the graph.
+# PROV-O settings.
+# git: derive per-file provenance from git history (creation/modification
+#   dates as fallbacks, author agents, rename -> prov:wasRevisionOf) and
+#   stamp the build activity with the HEAD committer date. Deterministic
+#   per commit; wall-clock time never enters the graph.
+# qualified: emit prov:qualifiedAttribution/qualifiedAssociation nodes
+#   with roles alongside the direct properties.
 provenance:
-  gitTime: false
+  git: false
+  qualified: false
 
 # Schemas \`dockg validate\` checks via docmeta. Default: the frontmatter
-# schema bundled with dockg (schemas/frontmatter-0.2.json). Override with
+# schema bundled with dockg (schemas/frontmatter-0.3.json). Override with
 # file paths, URLs, or docmeta built-in ids:
 # validate:
 #   schemas: ["./my-schema.json"]

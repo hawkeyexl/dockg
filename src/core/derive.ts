@@ -5,8 +5,10 @@
  */
 import type { DocModel } from "../types.js";
 import type { DeriveSource } from "./config.js";
+import type { GitHistory } from "./git.js";
 import { hasScheme, resolveRelative } from "./analyze.js";
 import {
+  conceptSlug,
   encodeSegment,
   mintAgentIri,
   mintBuildActivityIri,
@@ -17,7 +19,23 @@ import {
   mintSectionIri,
   normalizeDocPath,
 } from "./iri.js";
-import { NS, RDF_TYPE } from "./vocab.js";
+import { NS, RDF_TYPE, ROLE } from "./vocab.js";
+
+/**
+ * Resolve a provenance target (`kg.derivedFrom` / `kg.revisionOf` entry) to a
+ * corpus doc path: doc-relative first, then repo-relative; null when neither
+ * names a discovered doc.
+ */
+function resolveProvDocPath(
+  docPath: string,
+  raw: string,
+  docByPath: ReadonlyMap<string, DocModel>,
+): string | null {
+  const docRelative = resolveRelative(docPath, raw);
+  if (docRelative !== null && docByPath.has(docRelative)) return docRelative;
+  const repoRelative = normalizeDocPath(raw);
+  return docByPath.has(repoRelative) ? repoRelative : null;
+}
 
 export type Term =
   | { kind: "iri"; value: string }
@@ -34,8 +52,10 @@ export interface DeriveOptions {
   derive: DeriveSource[];
   /** dockg's own version, stamped on the build agent (provenance source). */
   toolVersion?: string;
-  /** ISO 8601 corpus HEAD committer date; set only under `provenance.gitTime`. */
-  gitTime?: string;
+  /** Per-file git history; set only under `provenance.git`. */
+  gitHistory?: GitHistory;
+  /** Emit qualified attribution/association nodes (`provenance.qualified`). */
+  qualified?: boolean;
 }
 
 const iri = (value: string): Term => ({ kind: "iri", value });
@@ -123,10 +143,61 @@ export function deriveGraph(docs: DocModel[], options: DeriveOptions): Quad[] {
     return a;
   };
 
+  const qualified = options.qualified === true;
+
+  /** doc ↔ author qualification: {docIri}#attribution-{agentSlug}. */
+  const qualifyAttribution = (docIri: string, agentIri: string, name: string): void => {
+    if (!qualified) return;
+    const node = `${docIri}#attribution-${conceptSlug(name)}`;
+    add(docIri, `${NS.prov}qualifiedAttribution`, iri(node));
+    add(node, RDF_TYPE, iri(`${NS.prov}Attribution`));
+    add(node, `${NS.prov}agent`, iri(agentIri));
+    add(node, `${NS.prov}hadRole`, iri(ROLE.author));
+  };
+
+  /** activity ↔ agent qualification: {activityIri}-association. */
+  const qualifyAssociation = (activityIri: string, agentIri: string, role: string): void => {
+    if (!qualified) return;
+    const node = `${activityIri}-association`;
+    add(activityIri, `${NS.prov}qualifiedAssociation`, iri(node));
+    add(node, RDF_TYPE, iri(`${NS.prov}Association`));
+    add(node, `${NS.prov}agent`, iri(agentIri));
+    add(node, `${NS.prov}hadRole`, iri(role));
+  };
+
+  /** Author agent + creator/attribution edges (+ qualification when on). */
+  const attributeAuthor = (docIri: string, name: string): void => {
+    const a = agentNode(name, "Person");
+    add(docIri, `${NS.dcterms}creator`, iri(a));
+    add(docIri, `${NS.prov}wasAttributedTo`, iri(a));
+    qualifyAttribution(docIri, a, name);
+  };
+
+  /** Shared mapping for kg.derivedFrom / kg.revisionOf entries. */
+  const provTargetEdge = (
+    doc: DocModel,
+    docIri: string,
+    raw: string,
+    predicate: string,
+  ): void => {
+    if (hasScheme(raw)) {
+      add(docIri, predicate, iri(raw));
+      return;
+    }
+    const target = resolveProvDocPath(normalizeDocPath(doc.path), raw, docByPath);
+    if (target) {
+      add(docIri, predicate, iri(mintDocIri(baseIri, target)));
+    } else {
+      add(docIri, `${NS.dockg}brokenLink`, lit(raw));
+    }
+  };
+
   for (const doc of docs) {
     const docIri = mintDocIri(baseIri, doc.path);
     const fm = doc.frontmatter;
     const kg = kgObject(fm);
+    let createdEmitted = false;
+    let modifiedEmitted = false;
 
     add(docIri, RDF_TYPE, iri(`${NS.dockg}Document`));
     if (prov) add(docIri, RDF_TYPE, iri(`${NS.prov}Entity`));
@@ -141,9 +212,7 @@ export function deriveGraph(docs: DocModel[], options: DeriveOptions): Quad[] {
 
       for (const author of asStringArray(fmValue(fm, ["author", "authors"]))) {
         if (prov) {
-          const a = agentNode(author, "Person");
-          add(docIri, `${NS.dcterms}creator`, iri(a));
-          add(docIri, `${NS.prov}wasAttributedTo`, iri(a));
+          attributeAuthor(docIri, author);
         } else {
           add(docIri, `${NS.dcterms}creator`, lit(author));
         }
@@ -153,10 +222,14 @@ export function deriveGraph(docs: DocModel[], options: DeriveOptions): Quad[] {
       if (created) {
         add(docIri, `${NS.dcterms}created`, dateTerm(created));
         if (prov) add(docIri, `${NS.prov}generatedAtTime`, dateTerm(created));
+        createdEmitted = true;
       }
 
       const modified = asString(fmValue(fm, ["updated", "lastmod", "modified"]));
-      if (modified) add(docIri, `${NS.dcterms}modified`, dateTerm(modified));
+      if (modified) {
+        add(docIri, `${NS.dcterms}modified`, dateTerm(modified));
+        modifiedEmitted = true;
+      }
 
       const language = asString(fmValue(fm, ["lang", "language"]));
       if (language) add(docIri, `${NS.dcterms}language`, lit(language));
@@ -246,23 +319,34 @@ export function deriveGraph(docs: DocModel[], options: DeriveOptions): Quad[] {
     }
 
     if (prov) {
-      // kg.derivedFrom: doc-relative path, repo-relative path, or URL.
+      // kg.derivedFrom / kg.revisionOf: doc-relative path, repo-relative
+      // path, or URL — one shared resolution.
       for (const raw of kg ? asStringArray(kg["derivedFrom"]) : []) {
-        if (hasScheme(raw)) {
-          add(docIri, `${NS.prov}wasDerivedFrom`, iri(raw));
-          continue;
+        provTargetEdge(doc, docIri, raw, `${NS.prov}wasDerivedFrom`);
+      }
+      for (const raw of kg ? asStringArray(kg["revisionOf"]) : []) {
+        provTargetEdge(doc, docIri, raw, `${NS.prov}wasRevisionOf`);
+      }
+
+      // Per-file git history (provenance.git): frontmatter always wins on
+      // dates; authors merge; renames become revision edges to the
+      // historical-path entities.
+      const gitFile = options.gitHistory?.files.get(normalizeDocPath(doc.path));
+      if (gitFile) {
+        if (!createdEmitted && gitFile.created) {
+          add(docIri, `${NS.dcterms}created`, dateTerm(gitFile.created));
+          add(docIri, `${NS.prov}generatedAtTime`, dateTerm(gitFile.created));
         }
-        const docRelative = resolveRelative(doc.path, raw);
-        const target =
-          docRelative !== null && docByPath.has(docRelative)
-            ? docRelative
-            : docByPath.has(normalizeDocPath(raw))
-              ? normalizeDocPath(raw)
-              : null;
-        if (target) {
-          add(docIri, `${NS.prov}wasDerivedFrom`, iri(mintDocIri(baseIri, target)));
-        } else {
-          add(docIri, `${NS.dockg}brokenLink`, lit(raw));
+        if (!modifiedEmitted && gitFile.modified) {
+          add(docIri, `${NS.dcterms}modified`, dateTerm(gitFile.modified));
+        }
+        for (const author of gitFile.authors) {
+          attributeAuthor(docIri, author);
+        }
+        for (const oldPath of gitFile.renamedFrom) {
+          const oldIri = mintDocIri(baseIri, oldPath);
+          add(docIri, `${NS.prov}wasRevisionOf`, iri(oldIri));
+          add(oldIri, RDF_TYPE, iri(`${NS.prov}Entity`));
         }
       }
 
@@ -272,9 +356,11 @@ export function deriveGraph(docs: DocModel[], options: DeriveOptions): Quad[] {
         (kg && asString(kg["generatedBy"])) ?? asString(fmValue(fm, ["generatedBy"]));
       if (generatedBy) {
         const activity = `${docIri}#generation`;
+        const model = agentNode(generatedBy, "SoftwareAgent");
         add(docIri, `${NS.prov}wasGeneratedBy`, iri(activity));
         add(activity, RDF_TYPE, iri(`${NS.prov}Activity`));
-        add(activity, `${NS.prov}wasAssociatedWith`, iri(agentNode(generatedBy, "SoftwareAgent")));
+        add(activity, `${NS.prov}wasAssociatedWith`, iri(model));
+        qualifyAssociation(activity, model, ROLE.generator);
       }
 
       // kg.provenance (written by `dockg fill`): attribute the machine-filled
@@ -289,8 +375,10 @@ export function deriveGraph(docs: DocModel[], options: DeriveOptions): Quad[] {
         const model = asString(provenanceEntry["generatedBy"]);
         if (model) {
           const activity = `${docIri}#kg-fill`;
+          const modelAgent = agentNode(model, "SoftwareAgent");
           add(activity, RDF_TYPE, iri(`${NS.prov}Activity`));
-          add(activity, `${NS.prov}wasAssociatedWith`, iri(agentNode(model, "SoftwareAgent")));
+          add(activity, `${NS.prov}wasAssociatedWith`, iri(modelAgent));
+          qualifyAssociation(activity, modelAgent, ROLE.generator);
           const filledFields = asStringArray(provenanceEntry["fields"]);
           for (const field of filledFields) {
             add(activity, `${NS.dockg}filledField`, lit(field));
@@ -312,14 +400,16 @@ export function deriveGraph(docs: DocModel[], options: DeriveOptions): Quad[] {
     add(graphIri, `${NS.prov}wasGeneratedBy`, iri(activity));
     add(activity, RDF_TYPE, iri(`${NS.prov}Activity`));
     add(activity, `${NS.prov}wasAssociatedWith`, iri(tool));
+    qualifyAssociation(activity, tool, ROLE.tool);
     if (options.toolVersion) {
       add(tool, `${NS.dockg}version`, lit(options.toolVersion));
     }
     for (const doc of docs) {
       add(activity, `${NS.prov}used`, iri(mintDocIri(baseIri, doc.path)));
     }
-    if (options.gitTime) {
-      add(activity, `${NS.prov}endedAtTime`, typedLit(options.gitTime, `${NS.xsd}dateTime`));
+    const headTime = options.gitHistory?.headTime;
+    if (headTime) {
+      add(activity, `${NS.prov}endedAtTime`, typedLit(headTime, `${NS.xsd}dateTime`));
     }
   }
 

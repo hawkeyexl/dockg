@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { analyzeDoc } from "../../src/core/analyze.js";
 import { deriveGraph } from "../../src/core/derive.js";
-import { NS } from "../../src/core/vocab.js";
+import { NS, ROLE } from "../../src/core/vocab.js";
 import type { Quad, Term } from "../../src/core/derive.js";
 import type { DeriveSource } from "../../src/core/config.js";
+import type { GitHistory } from "../../src/core/git.js";
 
 const BASE = "https://example.com/kg/";
 const ALL_SOURCES: DeriveSource[] = [
@@ -26,13 +27,14 @@ function docs(files: Record<string, string>) {
 function graph(
   files: Record<string, string>,
   sources = ALL_SOURCES,
-  extra: { toolVersion?: string; gitTime?: string } = {},
+  extra: { toolVersion?: string; gitHistory?: GitHistory; qualified?: boolean } = {},
 ): Quad[] {
   return deriveGraph(docs(files), {
     baseIri: BASE,
     derive: sources,
     toolVersion: extra.toolVersion ?? "0.0.0-test",
-    gitTime: extra.gitTime,
+    gitHistory: extra.gitHistory,
+    qualified: extra.qualified,
   });
 }
 
@@ -185,9 +187,11 @@ describe("deriveGraph — provenance", () => {
     expect(has(g, tool, `${NS.dockg}version`, lit("1.2.3"))).toBe(true);
   });
 
-  it("adds prov:endedAtTime only when gitTime is provided", () => {
+  it("adds prov:endedAtTime only when git history provides a head time", () => {
     const time = "2026-07-20T12:00:00-07:00";
-    const g = graph({ "docs/a.md": "# A\n" }, ALL_SOURCES, { gitTime: time });
+    const g = graph({ "docs/a.md": "# A\n" }, ALL_SOURCES, {
+      gitHistory: { headTime: time, files: new Map() },
+    });
     expect(
       has(g, `${BASE}activity/build`, `${NS.prov}endedAtTime`, lit(time, `${NS.xsd}dateTime`)),
     ).toBe(true);
@@ -195,10 +199,111 @@ describe("deriveGraph — provenance", () => {
     expect(without.some((q) => q.p === `${NS.prov}endedAtTime`)).toBe(false);
   });
 
+  it("maps declared kg.revisionOf like derivedFrom: resolved, URL, or broken", () => {
+    const g = graph({
+      "docs/a.md":
+        "---\nkg:\n  revisionOf: [old.md, https://example.org/v1, gone.md]\n---\n",
+      "docs/old.md": "# Old\n",
+    });
+    expect(has(g, DOC, `${NS.prov}wasRevisionOf`, iri(`${BASE}doc/docs/old.md`))).toBe(true);
+    expect(has(g, DOC, `${NS.prov}wasRevisionOf`, iri("https://example.org/v1"))).toBe(true);
+    expect(has(g, DOC, `${NS.dockg}brokenLink`, lit("gone.md"))).toBe(true);
+  });
+
+  it("fills dates from git history only when frontmatter has none", () => {
+    const gitHistory: GitHistory = {
+      files: new Map([
+        [
+          "docs/a.md",
+          {
+            created: "2026-01-01T10:00:00+00:00",
+            modified: "2026-02-02T10:00:00+00:00",
+            authors: ["Git Author"],
+            renamedFrom: [],
+          },
+        ],
+      ]),
+    };
+    const g = graph({ "docs/a.md": "# A\n" }, ALL_SOURCES, { gitHistory });
+    expect(
+      has(g, DOC, `${NS.dcterms}created`, lit("2026-01-01T10:00:00+00:00", `${NS.xsd}dateTime`)),
+    ).toBe(true);
+    expect(
+      has(g, DOC, `${NS.dcterms}modified`, lit("2026-02-02T10:00:00+00:00", `${NS.xsd}dateTime`)),
+    ).toBe(true);
+    expect(
+      has(g, DOC, `${NS.prov}wasAttributedTo`, iri(`${BASE}agent/git-author`)),
+    ).toBe(true);
+
+    const fmWins = graph(
+      { "docs/a.md": "---\ndate: 2025-05-05\nupdated: 2025-06-06\n---\n" },
+      ALL_SOURCES,
+      { gitHistory },
+    );
+    expect(fmWins.some((q) => q.p === `${NS.dcterms}created` && q.o.value.startsWith("2026"))).toBe(false);
+    expect(has(fmWins, DOC, `${NS.dcterms}created`, lit("2025-05-05", `${NS.xsd}date`))).toBe(true);
+  });
+
+  it("derives prov:wasRevisionOf edges from git renames", () => {
+    const gitHistory: GitHistory = {
+      files: new Map([
+        [
+          "docs/a.md",
+          { authors: ["X"], renamedFrom: ["docs/old-name.md", "docs/older.md"] },
+        ],
+      ]),
+    };
+    const g = graph({ "docs/a.md": "# A\n" }, ALL_SOURCES, { gitHistory });
+    const old = `${BASE}doc/docs/old-name.md`;
+    expect(has(g, DOC, `${NS.prov}wasRevisionOf`, iri(old))).toBe(true);
+    expect(has(g, DOC, `${NS.prov}wasRevisionOf`, iri(`${BASE}doc/docs/older.md`))).toBe(true);
+    expect(has(g, old, `${NS.rdf}type`, iri(`${NS.prov}Entity`))).toBe(true);
+  });
+
   it("emits no graph-level block when the provenance source is off", () => {
     const g = graph({ "docs/a.md": "# A\n" }, ["frontmatter", "tags"]);
     expect(g.some((q) => q.s === `${BASE}graph`)).toBe(false);
     expect(g.some((q) => q.s === `${BASE}activity/build`)).toBe(false);
+  });
+});
+
+describe("deriveGraph — qualified provenance", () => {
+  it("qualifies author attribution with a deterministic node and role", () => {
+    const g = graph({ "docs/a.md": "---\nauthor: Jane Doe\n---\n" }, ALL_SOURCES, {
+      qualified: true,
+    });
+    const node = `${DOC}#attribution-jane-doe`;
+    expect(has(g, DOC, `${NS.prov}qualifiedAttribution`, iri(node))).toBe(true);
+    expect(has(g, node, `${NS.rdf}type`, iri(`${NS.prov}Attribution`))).toBe(true);
+    expect(has(g, node, `${NS.prov}agent`, iri(`${BASE}agent/jane-doe`))).toBe(true);
+    expect(has(g, node, `${NS.prov}hadRole`, iri(ROLE.author))).toBe(true);
+    // direct property remains
+    expect(has(g, DOC, `${NS.prov}wasAttributedTo`, iri(`${BASE}agent/jane-doe`))).toBe(true);
+  });
+
+  it("qualifies generation and build associations", () => {
+    const g = graph(
+      { "docs/a.md": "---\ngeneratedBy: model-x\n---\n" },
+      ALL_SOURCES,
+      { qualified: true },
+    );
+    const genAssoc = `${DOC}#generation-association`;
+    expect(has(g, `${DOC}#generation`, `${NS.prov}qualifiedAssociation`, iri(genAssoc))).toBe(true);
+    expect(has(g, genAssoc, `${NS.rdf}type`, iri(`${NS.prov}Association`))).toBe(true);
+    expect(has(g, genAssoc, `${NS.prov}agent`, iri(`${BASE}agent/model-x`))).toBe(true);
+    expect(has(g, genAssoc, `${NS.prov}hadRole`, iri(ROLE.generator))).toBe(true);
+
+    const buildAssoc = `${BASE}activity/build-association`;
+    expect(
+      has(g, `${BASE}activity/build`, `${NS.prov}qualifiedAssociation`, iri(buildAssoc)),
+    ).toBe(true);
+    expect(has(g, buildAssoc, `${NS.prov}hadRole`, iri(ROLE.tool))).toBe(true);
+  });
+
+  it("emits zero qualified triples when the flag is off", () => {
+    const g = graph({ "docs/a.md": "---\nauthor: Jane\ngeneratedBy: m\n---\n" });
+    expect(g.some((q) => q.p.includes("qualified"))).toBe(false);
+    expect(g.some((q) => q.p === `${NS.prov}hadRole`)).toBe(false);
   });
 });
 

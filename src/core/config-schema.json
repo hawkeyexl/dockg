@@ -58,7 +58,8 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "gitTime": { "type": "boolean" }
+        "git": { "type": "boolean" },
+        "qualified": { "type": "boolean" }
       }
     },
     "fill": {

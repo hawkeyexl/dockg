@@ -59,8 +59,14 @@ export interface DockgConfig {
   build: { derive: DeriveSource[] };
   validate: { schemas: string[] };
   provenance: {
-    /** Stamp the build activity with the corpus HEAD committer date. */
-    gitTime: boolean;
+    /**
+     * Gate for ALL git-derived provenance: per-file dates/authors, rename →
+     * prov:wasRevisionOf edges, and the build activity's prov:endedAtTime
+     * (HEAD committer date). Deterministic per commit; never the wall clock.
+     */
+    git: boolean;
+    /** Emit qualified attribution/association nodes with roles. */
+    qualified: boolean;
   };
   fill: {
     provider: ProviderName;
@@ -156,7 +162,8 @@ export function parseConfig(text: string, configPath: string): DockgConfig {
       schemas: r.validate?.schemas ?? [],
     },
     provenance: {
-      gitTime: r.provenance?.gitTime ?? false,
+      git: r.provenance?.git ?? false,
+      qualified: r.provenance?.qualified ?? false,
     },
     fill: {
       provider: r.fill?.provider ?? "anthropic",

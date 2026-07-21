@@ -23,8 +23,9 @@ describe("parseConfig", () => {
     ]);
     // empty = use the schema bundled with dockg (schemas/frontmatter-0.2.json)
     expect(c.validate.schemas).toEqual([]);
-    expect(c.provenance.gitTime).toBe(false);
+    expect(c.provenance).toEqual({ git: false, qualified: false });
     expect(c.fill.writeProvenance).toBe(true);
+    expect(c.provenance).toEqual({ git: false, qualified: false });
     expect(c.fill.provider).toBe("anthropic");
     expect(c.fill.temperature).toBe(0);
     expect(c.fill.maxCostUsd).toBe(5);
@@ -86,13 +87,23 @@ describe("parseConfig", () => {
     ).toThrow(DockgError);
   });
 
-  it("parses provenance and fill.writeProvenance overrides", () => {
+  it("parses fill.writeProvenance overrides", () => {
     const c = parseConfig(
-      "version: 1\nprovenance:\n  gitTime: true\nfill:\n  writeProvenance: false\n",
+      "version: 1\nfill:\n  writeProvenance: false\n",
       "/tmp/dockg.config.yaml",
     );
-    expect(c.provenance.gitTime).toBe(true);
     expect(c.fill.writeProvenance).toBe(false);
+  });
+
+  it("parses provenance flags and rejects the retired gitTime key", () => {
+    const c = parseConfig(
+      "version: 1\nprovenance:\n  git: true\n  qualified: true\n",
+      "/tmp/dockg.config.yaml",
+    );
+    expect(c.provenance).toEqual({ git: true, qualified: true });
+    expect(() =>
+      parseConfig("version: 1\nprovenance:\n  gitTime: true\n", "/tmp/dockg.config.yaml"),
+    ).toThrow(DockgError);
   });
 
   it("rejects an unknown derive source", () => {

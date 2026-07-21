@@ -22,3 +22,13 @@ export const PREFIXES: ReadonlyArray<[Prefix, string]> = (
 ).sort(([a], [b]) => (a < b ? -1 : 1));
 
 export const RDF_TYPE = `${NS.rdf}type`;
+
+/**
+ * Role individuals for qualified provenance (prov:hadRole objects). Part of
+ * the deliberately small dockg vocabulary.
+ */
+export const ROLE = {
+  author: `${NS.dockg}authorRole`,
+  generator: `${NS.dockg}generatorRole`,
+  tool: `${NS.dockg}toolRole`,
+} as const;
