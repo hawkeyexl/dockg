@@ -9,14 +9,14 @@
 
 <https://example.com/kg/activity/build> a prov:Activity ;
   prov:used <https://example.com/kg/doc/docs/configuration.md>, <https://example.com/kg/doc/docs/getting-started.md>, <https://example.com/kg/doc/docs/no-frontmatter.md>, <https://example.com/kg/doc/docs/windows-notes.md> ;
-  prov:wasAssociatedWith <https://example.com/kg/agent/dockg> .
+  prov:wasAssociatedWith <https://example.com/kg/agent/software/dockg> .
 
-<https://example.com/kg/agent/dockg> a prov:SoftwareAgent ;
+<https://example.com/kg/agent/person/jane-doe> a prov:Person ;
+  foaf:name "Jane Doe" .
+
+<https://example.com/kg/agent/software/dockg> a prov:SoftwareAgent ;
   foaf:name "dockg" ;
   dockg:version "0.1.0" .
-
-<https://example.com/kg/agent/jane-doe> a prov:Person ;
-  foaf:name "Jane Doe" .
 
 <https://example.com/kg/concept/administration> a skos:Concept ;
   skos:inScheme <https://example.com/kg/scheme> ;
@@ -68,7 +68,7 @@
 
 <https://example.com/kg/doc/docs/getting-started.md> a prov:Entity, dockg:Document ;
   dcterms:created "2026-05-01"^^xsd:date ;
-  dcterms:creator <https://example.com/kg/agent/jane-doe> ;
+  dcterms:creator <https://example.com/kg/agent/person/jane-doe> ;
   dcterms:description "Install and configure the tool." ;
   dcterms:hasPart <https://example.com/kg/doc/docs/getting-started.md#getting-started> ;
   dcterms:modified "2026-07-01"^^xsd:date ;
@@ -76,7 +76,7 @@
   dcterms:subject <https://example.com/kg/concept/installation>, <https://example.com/kg/concept/setup> ;
   dcterms:title "Getting Started" ;
   prov:generatedAtTime "2026-05-01"^^xsd:date ;
-  prov:wasAttributedTo <https://example.com/kg/agent/jane-doe> ;
+  prov:wasAttributedTo <https://example.com/kg/agent/person/jane-doe> ;
   dockg:codeLanguage "bash", "python" ;
   dockg:path "docs/getting-started.md" ;
   schema:image <https://example.com/kg/file/docs/img/arch.png> .

@@ -56,9 +56,16 @@ export function mintSchemeIri(base: string): string {
   return `${base}scheme`;
 }
 
-/** `{base}agent/{slug(name)}` — people and software agents share one namespace. */
-export function mintAgentIri(base: string, name: string): string {
-  return `${base}agent/${encodeSegment(conceptSlug(name))}`;
+/**
+ * The kind of actor an agent IRI names, mirroring PROV-O's three
+ * `prov:Agent` subclasses. Segmenting by kind keeps a person and a model
+ * whose names slug alike ("GPT 4" / "gpt-4") from merging into one node.
+ */
+export type AgentKind = "person" | "org" | "software";
+
+/** `{base}agent/{kind}/{slug(name)}`. */
+export function mintAgentIri(base: string, kind: AgentKind, name: string): string {
+  return `${base}agent/${kind}/${encodeSegment(conceptSlug(name))}`;
 }
 
 /** The graph itself as a prov:Entity. */

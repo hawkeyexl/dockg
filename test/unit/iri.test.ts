@@ -103,12 +103,26 @@ describe("conceptSlug / mintConceptIri", () => {
 });
 
 describe("provenance IRIs", () => {
-  it("mints agent IRIs from names in a shared namespace", () => {
-    expect(mintAgentIri("https://example.com/kg/", "Jane Doe")).toBe(
-      "https://example.com/kg/agent/jane-doe",
+  it("segments agent IRIs by kind, mirroring PROV's prov:Agent subclasses", () => {
+    expect(mintAgentIri("https://example.com/kg/", "person", "Jane Doe")).toBe(
+      "https://example.com/kg/agent/person/jane-doe",
     );
-    expect(mintAgentIri("https://example.com/kg/", "claude-sonnet-4-5")).toBe(
-      "https://example.com/kg/agent/claude-sonnet-4-5",
+    expect(
+      mintAgentIri("https://example.com/kg/", "software", "claude-sonnet-4-5"),
+    ).toBe("https://example.com/kg/agent/software/claude-sonnet-4-5");
+    expect(mintAgentIri("https://example.com/kg/", "org", "Acme Corp")).toBe(
+      "https://example.com/kg/agent/org/acme-corp",
+    );
+  });
+
+  it("keeps a person and a software agent with the same slug distinct", () => {
+    const base = "https://example.com/kg/";
+    expect(mintAgentIri(base, "person", "GPT 4")).not.toBe(
+      mintAgentIri(base, "software", "gpt-4"),
+    );
+    // ...and a human named after the tool no longer collides with it
+    expect(mintAgentIri(base, "person", "dockg")).not.toBe(
+      mintAgentIri(base, "software", "dockg"),
     );
   });
 
