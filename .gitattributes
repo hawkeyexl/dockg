@@ -1,0 +1,4 @@
+# The CRLF fixture must keep its CRLF line endings verbatim.
+test/fixtures/corpus/docs/windows-notes.md -text
+# Golden output is byte-exact LF.
+test/fixtures/golden/*.ttl -text

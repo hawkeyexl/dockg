@@ -6,6 +6,8 @@ import { Command } from "commander";
 import pc from "picocolors";
 import { DockgError } from "./types.js";
 import { runBuild } from "./commands/build.js";
+import { renderQuery, runQuery } from "./commands/query.js";
+import { renderStats, runStats } from "./commands/stats.js";
 
 const pkg = JSON.parse(
   readFileSync(
@@ -43,6 +45,57 @@ program
       console.log(
         `Wrote ${result.outPath} (${result.docs} docs, ${result.quads} triples)`,
       );
+    } catch (e) {
+      fail(e);
+    }
+  });
+
+program
+  .command("query")
+  .description("Match triple patterns against the built graph (omit a term for wildcard)")
+  .option("-s, --s <term>", "Subject IRI or prefixed name")
+  .option("-p, --p <term>", "Predicate IRI or prefixed name")
+  .option("-o, --o <term>", "Object IRI, prefixed name, or literal value")
+  .option("-c, --config <path>", "Path to dockg.config.yaml")
+  .option("-g, --graph <path>", "Graph .ttl path (default: config out)")
+  .option("-f, --format <format>", "Output format: pretty | json", "pretty")
+  .action((opts: {
+    s?: string;
+    p?: string;
+    o?: string;
+    config?: string;
+    graph?: string;
+    format: string;
+  }) => {
+    try {
+      const result = runQuery(opts);
+      console.log(renderQuery(result, opts.format as "pretty" | "json"));
+    } catch (e) {
+      fail(e);
+    }
+  });
+
+program
+  .command("stats")
+  .description("Summarize the built graph: counts, orphans, broken links, hubs")
+  .option("-c, --config <path>", "Path to dockg.config.yaml")
+  .option("-g, --graph <path>", "Graph .ttl path (default: config out)")
+  .option("-f, --format <format>", "Output format: pretty | json", "pretty")
+  .option("--check", "Exit 1 when broken internal links exist")
+  .option("--top <n>", "How many most-connected docs to list", (v) =>
+    Number.parseInt(v, 10),
+  )
+  .action((opts: {
+    config?: string;
+    graph?: string;
+    format: string;
+    check?: boolean;
+    top?: number;
+  }) => {
+    try {
+      const report = runStats(opts);
+      console.log(renderStats(report, opts.format as "pretty" | "json"));
+      process.exitCode = report.exitCode;
     } catch (e) {
       fail(e);
     }
