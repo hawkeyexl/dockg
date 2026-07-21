@@ -115,6 +115,21 @@ function kgObject(fm: Record<string, unknown>): Record<string, unknown> | undefi
     : undefined;
 }
 
+/**
+ * kg.provenance entries. Schema 0.4 uses an array (one entry per model);
+ * the 0.2/0.3 single-object form is accepted for backward compatibility.
+ */
+function provenanceEntries(value: unknown): Array<Record<string, unknown>> {
+  if (Array.isArray(value)) {
+    return value.filter(
+      (e): e is Record<string, unknown> =>
+        !!e && typeof e === "object" && !Array.isArray(e),
+    );
+  }
+  if (value && typeof value === "object") return [value as Record<string, unknown>];
+  return [];
+}
+
 export function deriveGraph(docs: DocModel[], options: DeriveOptions): Quad[] {
   const { baseIri } = options;
   const sources = new Set(options.derive);
@@ -145,20 +160,25 @@ export function deriveGraph(docs: DocModel[], options: DeriveOptions): Quad[] {
 
   const qualified = options.qualified === true;
 
-  /** doc ↔ author qualification: {docIri}#attribution-{agentSlug}. */
+  // Qualification node IRIs use "." separators (github-slugger can never emit
+  // a dot, so heading slugs cannot collide) and carry the agent slug, so two
+  // agents on one activity/doc never merge into a single node.
+
+  /** doc ↔ author qualification: {docIri}#prov.attribution.{agentSlug}. */
   const qualifyAttribution = (docIri: string, agentIri: string, name: string): void => {
     if (!qualified) return;
-    const node = `${docIri}#attribution-${conceptSlug(name)}`;
+    const node = `${docIri}#prov.attribution.${conceptSlug(name)}`;
     add(docIri, `${NS.prov}qualifiedAttribution`, iri(node));
     add(node, RDF_TYPE, iri(`${NS.prov}Attribution`));
     add(node, `${NS.prov}agent`, iri(agentIri));
     add(node, `${NS.prov}hadRole`, iri(ROLE.author));
   };
 
-  /** activity ↔ agent qualification: {activityIri}-association. */
+  /** activity ↔ agent qualification: {activityIri}.assoc.{agentSlug}. */
   const qualifyAssociation = (activityIri: string, agentIri: string, role: string): void => {
     if (!qualified) return;
-    const node = `${activityIri}-association`;
+    const agentSlug = agentIri.slice(agentIri.lastIndexOf("/") + 1);
+    const node = `${activityIri}.assoc.${agentSlug}`;
     add(activityIri, `${NS.prov}qualifiedAssociation`, iri(node));
     add(node, RDF_TYPE, iri(`${NS.prov}Association`));
     add(node, `${NS.prov}agent`, iri(agentIri));
@@ -351,11 +371,13 @@ export function deriveGraph(docs: DocModel[], options: DeriveOptions): Quad[] {
       }
 
       // Whole-page generation: kg.generatedBy, falling back to the page-level
-      // `generatedBy` convention shared with docevals.
+      // `generatedBy` convention shared with docevals. Fragment uses a "."
+      // separator, which github-slugger can never produce — heading slugs
+      // cannot collide with provenance fragments.
       const generatedBy =
         (kg && asString(kg["generatedBy"])) ?? asString(fmValue(fm, ["generatedBy"]));
       if (generatedBy) {
-        const activity = `${docIri}#generation`;
+        const activity = `${docIri}#prov.generation`;
         const model = agentNode(generatedBy, "SoftwareAgent");
         add(docIri, `${NS.prov}wasGeneratedBy`, iri(activity));
         add(activity, RDF_TYPE, iri(`${NS.prov}Activity`));
@@ -363,30 +385,26 @@ export function deriveGraph(docs: DocModel[], options: DeriveOptions): Quad[] {
         qualifyAssociation(activity, model, ROLE.generator);
       }
 
-      // kg.provenance (written by `dockg fill`): attribute the machine-filled
-      // fields to a per-doc activity. Only the doc's own topic concept is
-      // prov:generated — shared subject/tag concepts are never attributed,
-      // or one doc's LLM would taint every doc using the same tag.
-      const provenanceEntry =
-        kg && kg["provenance"] && typeof kg["provenance"] === "object" && !Array.isArray(kg["provenance"])
-          ? (kg["provenance"] as Record<string, unknown>)
-          : undefined;
-      if (provenanceEntry) {
-        const model = asString(provenanceEntry["generatedBy"]);
-        if (model) {
-          const activity = `${docIri}#kg-fill`;
-          const modelAgent = agentNode(model, "SoftwareAgent");
-          add(activity, RDF_TYPE, iri(`${NS.prov}Activity`));
-          add(activity, `${NS.prov}wasAssociatedWith`, iri(modelAgent));
-          qualifyAssociation(activity, modelAgent, ROLE.generator);
-          const filledFields = asStringArray(provenanceEntry["fields"]);
-          for (const field of filledFields) {
-            add(activity, `${NS.dockg}filledField`, lit(field));
-          }
-          const prefLabel = kg ? asString(kg["prefLabel"]) : undefined;
-          if (prefLabel && filledFields.includes("prefLabel")) {
-            add(activity, `${NS.prov}generated`, iri(mintConceptIri(baseIri, prefLabel)));
-          }
+      // kg.provenance (written by `dockg fill`): one activity PER MODEL so
+      // multiple fills by different models keep truthful attribution. Only
+      // the doc's own topic concept is prov:generated — shared subject/tag
+      // concepts are never attributed, or one doc's LLM would taint every
+      // doc using the same tag.
+      for (const entry of provenanceEntries(kg?.["provenance"])) {
+        const model = asString(entry["generatedBy"]);
+        if (!model) continue;
+        const activity = `${docIri}#prov.kg-fill.${conceptSlug(model)}`;
+        const modelAgent = agentNode(model, "SoftwareAgent");
+        add(activity, RDF_TYPE, iri(`${NS.prov}Activity`));
+        add(activity, `${NS.prov}wasAssociatedWith`, iri(modelAgent));
+        qualifyAssociation(activity, modelAgent, ROLE.generator);
+        const filledFields = asStringArray(entry["fields"]);
+        for (const field of filledFields) {
+          add(activity, `${NS.dockg}filledField`, lit(field));
+        }
+        const prefLabel = kg ? asString(kg["prefLabel"]) : undefined;
+        if (prefLabel && filledFields.includes("prefLabel")) {
+          add(activity, `${NS.prov}generated`, iri(mintConceptIri(baseIri, prefLabel)));
         }
       }
     }

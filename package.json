@@ -42,7 +42,7 @@
     "commitlint": "commitlint --edit",
     "semantic-release": "semantic-release",
     "prepare": "husky",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "node scripts/check-publishable.mjs && npm run build"
   },
   "keywords": [
     "knowledge-graph",

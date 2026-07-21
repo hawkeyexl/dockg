@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, renameSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, renameSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -50,6 +50,33 @@ describe("collectGitHistory (real repo)", () => {
     expect(file.modified).toContain("2026-02-01");
     expect(file.authors).toEqual(["Test Author"]);
     expect(file.renamedFrom).toEqual(["old-name.md"]);
+  });
+
+  it("keys paths relative to the collection cwd (monorepo subdirectory builds)", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "dockg-gitsub-"));
+    git(dir, "init", "-q");
+    git(dir, "config", "user.name", "Test Author");
+    git(dir, "config", "user.email", "test@example.com");
+    git(dir, "config", "commit.gpgsign", "false");
+    const env = {
+      GIT_AUTHOR_DATE: "2026-01-01T10:00:00Z",
+      GIT_COMMITTER_DATE: "2026-01-01T10:00:00Z",
+    };
+    mkdirSync(join(dir, "site"));
+    writeFileSync(join(dir, "site", "guide.md"), "# G\n");
+    writeFileSync(join(dir, "root.md"), "# R\n");
+    execFileSync("git", ["add", "-A"], { cwd: dir, env: { ...process.env, ...env } });
+    execFileSync("git", ["commit", "-q", "-m", "add"], {
+      cwd: dir,
+      env: { ...process.env, ...env },
+    });
+
+    // Collect FROM the subdirectory — the corpus path there is "guide.md".
+    const history = await collectGitHistory(join(dir, "site"));
+    expect(history.files.has("guide.md")).toBe(true);
+    expect(history.files.has("site/guide.md")).toBe(false);
+    // out-of-scope files don't leak in
+    expect(history.files.has("root.md")).toBe(false);
   });
 
   it("is deterministic: two collections are deep-equal", async () => {

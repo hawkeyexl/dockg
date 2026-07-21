@@ -34,6 +34,40 @@ export interface GitHistory {
 const RECORD = "\u0001";
 const STATUS_LINE = /^([AMDRC])\d*\t(.+)$/;
 
+/**
+ * Undo git's C-style path quoting. Even with core.quotepath=off, paths
+ * containing double quotes, backslashes, or control characters arrive as
+ * `"docs/a\"b.md"` — quotepath only disables quoting of non-ASCII bytes.
+ * Octal escapes are raw UTF-8 bytes, decoded together at the end.
+ */
+export function unquoteGitPath(path: string): string {
+  if (path.length < 2 || !path.startsWith('"') || !path.endsWith('"')) {
+    return path;
+  }
+  const inner = path.slice(1, -1);
+  const bytes: number[] = [];
+  for (let i = 0; i < inner.length; i++) {
+    const ch = inner[i]!;
+    if (ch !== "\\") {
+      for (const byte of Buffer.from(ch, "utf8")) bytes.push(byte);
+      continue;
+    }
+    const next = inner[++i];
+    if (next === undefined) break;
+    if (next >= "0" && next <= "7") {
+      let octal = next;
+      while (octal.length < 3 && inner[i + 1]! >= "0" && inner[i + 1]! <= "7") {
+        octal += inner[++i];
+      }
+      bytes.push(Number.parseInt(octal, 8));
+    } else {
+      const map: Record<string, string> = { n: "\n", t: "\t", r: "\r" };
+      for (const byte of Buffer.from(map[next] ?? next, "utf8")) bytes.push(byte);
+    }
+  }
+  return Buffer.from(bytes).toString("utf8");
+}
+
 export async function collectGitHistory(
   cwd: string,
   exec: ExecFn = realExec,
@@ -47,12 +81,27 @@ export async function collectGitHistory(
       `--format=${RECORD}%H%x09%an%x09%cI`,
       "--name-status",
       "-M",
+      // Paths relative to cwd, matching discoverFiles output — without this,
+      // git emits repo-root-relative paths and every corpus lookup misses
+      // when the build runs in a subdirectory of the repo.
+      "--relative",
     ],
     { cwd, timeoutMs: 60000 },
   );
-  if (result.code !== 0 || result.stdout.trim() === "") {
+  if (result.spawnError) {
     throw new DockgError(
-      `provenance.git is enabled but git history could not be read (is ${cwd} a git repo with at least one commit?)`,
+      `provenance.git is enabled but git could not be run: ${result.spawnError} (is git installed and on PATH?)`,
+    );
+  }
+  if (result.timedOut) {
+    throw new DockgError(
+      "provenance.git is enabled but `git log` timed out after 60s — the repo history may be too large for whole-history provenance",
+    );
+  }
+  if (result.code !== 0 || result.stdout.trim() === "") {
+    const detail = result.stderr.trim().slice(-300);
+    throw new DockgError(
+      `provenance.git is enabled but git history could not be read (is ${cwd} a git repo with at least one commit?)${detail ? ` — git said: ${detail}` : ""}`,
     );
   }
 
@@ -74,9 +123,8 @@ export async function collectGitHistory(
 
   /** Register that the commit being parsed touched `path` (as known at that time). */
   const touch = (pathThen: string): GitFileHistory => {
-    const path = normalizeDocPath(pathThen);
+    const path = normalizeDocPath(unquoteGitPath(pathThen));
     const current = currentName.get(path) ?? path;
-    currentName.set(path, current);
     const file = entry(current);
     // Walking newest→oldest: first touch wins `modified`, every touch pushes
     // `created` older, authors keep first-appearance (newest) order.
@@ -108,11 +156,11 @@ export async function collectGitHistory(
         continue;
       }
       const file = touch(newPath);
-      const normalizedOld = normalizeDocPath(oldPath);
+      const normalizedOld = normalizeDocPath(unquoteGitPath(oldPath));
       file.renamedFrom.push(normalizedOld);
       // Older commits refer to the pre-rename path; fold them into this file.
-      const current = currentName.get(normalizeDocPath(newPath))!;
-      currentName.set(normalizedOld, current);
+      const normalizedNew = normalizeDocPath(unquoteGitPath(newPath));
+      currentName.set(normalizedOld, currentName.get(normalizedNew) ?? normalizedNew);
     } else {
       touch(rest);
     }

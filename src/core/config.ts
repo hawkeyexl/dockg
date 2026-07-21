@@ -158,7 +158,7 @@ export function parseConfig(text: string, configPath: string): DockgConfig {
       derive: r.build?.derive ?? [...ALL_DERIVE_SOURCES],
     },
     validate: {
-      // Empty means: use the schema bundled with dockg (schemas/frontmatter-0.2.json).
+      // Empty means: use the newest schema bundled with dockg (see bundledSchemaPath).
       schemas: r.validate?.schemas ?? [],
     },
     provenance: {

@@ -157,23 +157,36 @@ export function applyKgFields(
   return { content: split.open + newBlock + split.suffix, applied, skipped };
 }
 
-/** The doc's existing kg.provenance entry, if any (for merging across runs). */
-export function existingProvenance(
-  content: string,
-): { generatedBy?: string; fields: string[] } | undefined {
+export interface ProvenanceEntry {
+  generatedBy: string;
+  fields: string[];
+}
+
+/**
+ * The doc's existing kg.provenance entries (for merging across runs).
+ * Schema 0.4 stores an array (one entry per model); the earlier
+ * single-object form is normalized into a one-entry array.
+ */
+export function existingProvenance(content: string): ProvenanceEntry[] {
   const split = splitYamlFrontmatter(content, "");
-  if (split === null) return undefined;
+  if (split === null) return [];
   const doc = parseDocument(split.block);
-  if (doc.errors.length > 0) return undefined;
+  if (doc.errors.length > 0) return [];
   const plain = (doc.toJS() as { kg?: { provenance?: unknown } } | null)?.kg?.provenance;
-  if (!plain || typeof plain !== "object" || Array.isArray(plain)) return undefined;
-  const record = plain as Record<string, unknown>;
-  return {
-    generatedBy: typeof record["generatedBy"] === "string" ? record["generatedBy"] : undefined,
-    fields: Array.isArray(record["fields"])
-      ? record["fields"].filter((f): f is string => typeof f === "string")
-      : [],
-  };
+  const raw = Array.isArray(plain) ? plain : plain ? [plain] : [];
+  const entries: ProvenanceEntry[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+    const record = item as Record<string, unknown>;
+    if (typeof record["generatedBy"] !== "string") continue;
+    entries.push({
+      generatedBy: record["generatedBy"],
+      fields: Array.isArray(record["fields"])
+        ? record["fields"].filter((f): f is string => typeof f === "string")
+        : [],
+    });
+  }
+  return entries;
 }
 
 /** Fields already present on the doc's `kg` map ([] when none). */

@@ -89,8 +89,9 @@ export function runStats(opts: StatsOptions = {}): StatsReport {
   return {
     triples: store.size,
     docs: docIris.length,
-    sections: subjectsOfType(store, `${NS.dockg}Section`).length,
-    concepts: subjectsOfType(store, `${NS.skos}Concept`).length,
+    // countQuads avoids materializing + sorting arrays used only for counting.
+    sections: store.countQuads(null, namedNode(RDF_TYPE), namedNode(`${NS.dockg}Section`), null),
+    concepts: store.countQuads(null, namedNode(RDF_TYPE), namedNode(`${NS.skos}Concept`), null),
     references: refQuads.length,
     orphans,
     brokenLinks,

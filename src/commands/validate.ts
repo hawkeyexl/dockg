@@ -2,7 +2,7 @@
  * `dockg validate` — KG-readiness check. Thin wrapper over docmeta's
  * programmatic API, validating discovered docs against the schemas in
  * config `validate.schemas` (default: the frontmatter schema bundled with
- * this package at schemas/frontmatter-0.2.json).
+ * this package at schemas/frontmatter-0.4.json).
  */
 import { extname } from "node:path";
 import {
@@ -55,7 +55,7 @@ export async function runValidate(
     );
   }
 
-  // dockg self-hosts its frontmatter schema (schemas/frontmatter-0.2.json in
+  // dockg self-hosts its frontmatter schema (schemas/frontmatter-0.4.json in
   // the package); with no explicit validate.schemas, hand docmeta that file.
   const schemas =
     config.validate.schemas.length > 0

@@ -16,7 +16,12 @@ export {
   resolveBaseIri,
 } from "./core/iri.js";
 export { analyzeDoc } from "./core/analyze.js";
-export { deriveGraph, type Quad, type Term } from "./core/derive.js";
+export { deriveGraph, type DeriveOptions, type Quad, type Term } from "./core/derive.js";
+export {
+  collectGitHistory,
+  type GitFileHistory,
+  type GitHistory,
+} from "./core/git.js";
 export { emitTurtle } from "./core/emit.js";
 export { loadGraph, expandTerm, compactIri } from "./core/load.js";
 export {
@@ -25,6 +30,7 @@ export {
   existingProvenance,
   frontmatterKind,
   type KgApplyResult,
+  type ProvenanceEntry,
 } from "./core/frontmatter-edit.js";
 export { NS, PREFIXES } from "./core/vocab.js";
 export { runBuild, type BuildOptions, type BuildResult } from "./commands/build.js";

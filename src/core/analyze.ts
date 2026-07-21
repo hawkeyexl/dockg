@@ -105,8 +105,9 @@ function safeDecode(value: string): string {
  * Candidate repo paths for an extensionless (or extension-bearing) link
  * target. Shared by route and relative resolution so both link forms resolve
  * identically: an explicit extension is taken verbatim; a trailing slash
- * means "directory" (index files only); otherwise extensions are tried
- * before index files.
+ * prefers the directory's index files but falls back to extension candidates
+ * (pretty URLs — Hugo/Docusaurus serve foo.md at /foo/); otherwise extensions
+ * are tried before index files.
  */
 function targetCandidates(
   target: string,
@@ -115,15 +116,16 @@ function targetCandidates(
   indexFiles: string[],
 ): string[] {
   if (target !== "" && HAS_EXTENSION.test(target)) return [target];
-  const candidates: string[] = [];
-  if (target !== "" && !isDirectory) {
-    for (const ext of extensions) candidates.push(`${target}${ext}`);
-  }
+  const extensionCandidates =
+    target === "" ? [] : extensions.map((ext) => `${target}${ext}`);
   const dir = target === "" ? "" : `${target}/`;
+  const indexCandidates: string[] = [];
   for (const indexFile of indexFiles) {
-    for (const ext of extensions) candidates.push(`${dir}${indexFile}${ext}`);
+    for (const ext of extensions) indexCandidates.push(`${dir}${indexFile}${ext}`);
   }
-  return candidates;
+  return isDirectory
+    ? [...indexCandidates, ...extensionCandidates]
+    : [...extensionCandidates, ...indexCandidates];
 }
 
 /**

@@ -120,7 +120,7 @@ describe("runFill", () => {
     expect(report.results[0]?.fields).not.toContain("provenance");
   });
 
-  it("unions provenance fields across runs instead of erasing prior attribution", async () => {
+  it("keeps per-model provenance entries so a second model never claims the first's fields", async () => {
     const dir = setup(
       { "a.md": "---\ntitle: T\n---\n" },
       "fill:\n  fields: [prefLabel]\n",
@@ -129,7 +129,7 @@ describe("runFill", () => {
       cwd: dir,
       providerInstance: new MockProvider([{ json: { prefLabel: "X" } }], "m1"),
     });
-    // second run with a broader field set fills subjects too
+    // second run with a broader field set fills subjects too — different model
     const { writeFileSync: write } = await import("node:fs");
     write(
       join(dir, "dockg.config.yaml"),
@@ -140,7 +140,29 @@ describe("runFill", () => {
       providerInstance: new MockProvider([{ json: { subjects: ["s"] } }], "m2"),
     });
     const written = readFileSync(join(dir, "a.md"), "utf8");
-    expect(written).toMatch(/fields: \[ prefLabel, subjects \]/);
+    // one entry per model, each attributing only its own fields
+    expect(written).toMatch(/generatedBy: m1[\s\S]*?fields: \[ prefLabel \]/);
+    expect(written).toMatch(/generatedBy: m2[\s\S]*?fields: \[ subjects \]/);
+  });
+
+  it("moves a field's attribution when --force re-fills it with another model", async () => {
+    const dir = setup(
+      { "a.md": "---\ntitle: T\n---\n" },
+      "fill:\n  fields: [prefLabel]\n",
+    );
+    await runFill({
+      cwd: dir,
+      providerInstance: new MockProvider([{ json: { prefLabel: "X" } }], "m1"),
+    });
+    await runFill({
+      cwd: dir,
+      force: true,
+      providerInstance: new MockProvider([{ json: { prefLabel: "Y" } }], "m2"),
+    });
+    const written = readFileSync(join(dir, "a.md"), "utf8");
+    expect(written).toContain("prefLabel: Y");
+    expect(written).toMatch(/generatedBy: m2[\s\S]*?fields: \[ prefLabel \]/);
+    expect(written).not.toContain("m1"); // m1's emptied entry is dropped
   });
 
   it("skips provenance write-back when writeProvenance is false", async () => {

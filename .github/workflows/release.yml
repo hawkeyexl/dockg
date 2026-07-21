@@ -56,7 +56,9 @@ jobs:
       - run: npm run build
         working-directory: docmeta
 
-      - run: npm ci
+      # npm install (not ci) for the same reason as ci.yml: the lock spans the
+      # file:../docmeta tree, whose optional platform deps differ Windows↔Linux.
+      - run: npm install
         working-directory: dockg
       - run: npm run typecheck
         working-directory: dockg

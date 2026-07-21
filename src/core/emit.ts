@@ -34,7 +34,11 @@ function sanitizeIri(iriValue: string): string {
   return out;
 }
 
-/** Memo: the same predicates/objects recur once per quad; shorten each once. */
+/**
+ * Memo: the same predicates/objects recur once per quad; shorten each once.
+ * Cleared at the start of every emit so long-lived embedders don't accumulate
+ * every IRI ever serialized.
+ */
 const shortenMemo = new Map<string, string>();
 
 function shorten(iriValue: string): string {
@@ -89,6 +93,7 @@ function compareTerms(a: Term, b: Term): number {
 }
 
 export function emitTurtle(quads: Quad[]): string {
+  shortenMemo.clear();
   const lines: string[] = [];
   for (const [prefix, ns] of PREFIXES) {
     lines.push(`@prefix ${prefix}: <${ns}> .`);
