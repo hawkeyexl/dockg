@@ -17,13 +17,18 @@ git rebase origin/main
 from the npm registry (`^1.3.0`), so a clean checkout needs nothing but:
 
 ```bash
-npm ci
+npm install
 ```
 
-CI mirrors this exactly. There is no sibling-checkout step: dockg depended on
-`file:../docmeta` while docmeta's `extractFrontmatter` export was unreleased, and that
-dependency is gone — never reintroduce a `file:`/`link:` spec, since npm publishes them
-verbatim and `prepublishOnly` (scripts/check-publishable.mjs) now refuses to.
+CI mirrors this exactly. Use `npm install` rather than `npm ci`: the committed lock is
+generated on Windows and omits the Linux-side optional dependencies of
+`@napi-rs/wasm-runtime` (rolldown's wasm binding), so a strict lock check cannot pass on
+both platforms. Regenerating the lock on Linux would just invert the problem.
+
+There is no sibling-checkout step: dockg depended on `file:../docmeta` while docmeta's
+`extractFrontmatter` export was unreleased, and that dependency is gone — never
+reintroduce a `file:`/`link:` spec, since npm publishes them verbatim and
+`prepublishOnly` (scripts/check-publishable.mjs) now refuses to.
 
 Don't reach for `--no-verify` when a husky hook fails — install the missing deps or fix the
 message instead.

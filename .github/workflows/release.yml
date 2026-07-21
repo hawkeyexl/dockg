@@ -42,7 +42,8 @@ jobs:
           node-version: 24
           cache: npm
 
-      - run: npm ci
+      # npm install for the same reason as ci.yml (platform-skewed lock).
+      - run: npm install
       - run: npm run typecheck
       - run: npm run build
       - run: npm test

@@ -16,7 +16,11 @@ jobs:
           node-version: 24
           cache: npm
 
-      - run: npm ci
+      # npm install, not ci: the committed lock is generated on Windows and
+      # omits the Linux-side optional deps of @napi-rs/wasm-runtime
+      # (@emnapi/core, @emnapi/runtime), which rolldown's wasm binding pulls
+      # in — a strict lock check can't be satisfied on both platforms.
+      - run: npm install
       - run: npm run typecheck
       - run: npm run build
       - run: npm test
