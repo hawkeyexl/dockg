@@ -7,6 +7,7 @@ import pc from "picocolors";
 import { DockgError } from "./types.js";
 import { runBuild } from "./commands/build.js";
 import { renderQuery, runQuery } from "./commands/query.js";
+import { renderValidate, runValidate } from "./commands/validate.js";
 import { renderStats, runStats } from "./commands/stats.js";
 
 const pkg = JSON.parse(
@@ -45,6 +46,22 @@ program
       console.log(
         `Wrote ${result.outPath} (${result.docs} docs, ${result.quads} triples)`,
       );
+    } catch (e) {
+      fail(e);
+    }
+  });
+
+program
+  .command("validate")
+  .description("Check docs are KG-ready (frontmatter validated via docmeta)")
+  .argument("[globs...]", "Input globs (default: config inputs)")
+  .option("-c, --config <path>", "Path to dockg.config.yaml")
+  .option("-f, --format <format>", "Output format: pretty | json", "pretty")
+  .action(async (globs: string[], opts: { config?: string; format: string }) => {
+    try {
+      const result = await runValidate({ globs, config: opts.config });
+      console.log(renderValidate(result, opts.format as "pretty" | "json"));
+      process.exitCode = result.exitCode;
     } catch (e) {
       fail(e);
     }
