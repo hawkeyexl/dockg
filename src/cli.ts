@@ -53,9 +53,9 @@ program
   .argument("[globs...]", "Input globs (default: config inputs)")
   .option("-c, --config <path>", "Path to dockg.config.yaml")
   .option("-o, --out <path>", "Output .ttl path (default: config out)")
-  .action((globs: string[], opts: { config?: string; out?: string }) => {
+  .action(async (globs: string[], opts: { config?: string; out?: string }) => {
     try {
-      const result = runBuild({ globs, config: opts.config, out: opts.out });
+      const result = await runBuild({ globs, config: opts.config, out: opts.out });
       console.log(
         `Wrote ${result.outPath} (${result.docs} docs, ${result.quads} triples)`,
       );

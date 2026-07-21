@@ -46,10 +46,14 @@ jobs:
         working-directory: dockg
 
       # Determinism gate: byte-identical output is the product contract.
+      # (Golden comparison normalizes the dockg:version literal so release
+      # version bumps don't invalidate it.)
       - name: Determinism gate
         working-directory: dockg/test/fixtures/corpus
         run: |
           node ../../../dist/cli.js build --out /tmp/gate-a.ttl
           node ../../../dist/cli.js build --out /tmp/gate-b.ttl
           cmp /tmp/gate-a.ttl /tmp/gate-b.ttl
-          cmp /tmp/gate-a.ttl ../golden/graph.ttl
+          sed 's/dockg:version "[^"]*"/dockg:version "X"/' /tmp/gate-a.ttl > /tmp/gate-a-norm.ttl
+          sed 's/dockg:version "[^"]*"/dockg:version "X"/' ../golden/graph.ttl > /tmp/golden-norm.ttl
+          cmp /tmp/gate-a-norm.ttl /tmp/golden-norm.ttl

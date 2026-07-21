@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -18,11 +18,19 @@ function build(outPath: string): string {
   });
 }
 
+/** The tool version is stamped into the graph; normalize it so release
+ *  version bumps don't invalidate the golden. */
+function normalizeVersion(ttl: string): string {
+  return ttl.replace(/dockg:version "[^"]+"/g, 'dockg:version "X"');
+}
+
 describe("dockg build (integration)", () => {
-  it("matches the golden output byte-for-byte", () => {
+  it("matches the golden output byte-for-byte (modulo tool version)", () => {
     const out = join(mkdtempSync(join(tmpdir(), "dockg-build-")), "graph.ttl");
     build(out);
-    expect(readFileSync(out, "utf8")).toBe(readFileSync(golden, "utf8"));
+    expect(normalizeVersion(readFileSync(out, "utf8"))).toBe(
+      normalizeVersion(readFileSync(golden, "utf8")),
+    );
   });
 
   it("is byte-identical across two runs (determinism gate)", () => {
@@ -39,13 +47,54 @@ describe("dockg build (integration)", () => {
       readFileSync(golden, "utf8"),
     );
     // must equal the triple count `build` reports for the corpus
-    expect(quads.length).toBe(94);
+    expect(quads.length).toBe(113);
   });
 
   it("reports docs and triples on stdout", () => {
     const out = join(mkdtempSync(join(tmpdir(), "dockg-build-")), "graph.ttl");
     const stdout = build(out);
     expect(stdout).toMatch(/4 docs, \d+ triples/);
+  });
+
+  it("gitTime: errors loudly outside a git repo, is byte-stable inside one", () => {
+    const dir = mkdtempSync(join(tmpdir(), "dockg-gittime-"));
+    writeFileSync(
+      join(dir, "dockg.config.yaml"),
+      'version: 1\ninputs: ["*.md"]\nprovenance:\n  gitTime: true\n',
+    );
+    writeFileSync(join(dir, "a.md"), "# A\n");
+
+    // not a git repo -> operational error
+    let status = 0;
+    try {
+      execFileSync(process.execPath, [cli, "build", "--out", join(dir, "g.ttl")], {
+        encoding: "utf8",
+        cwd: dir,
+      });
+    } catch (e) {
+      status = (e as { status?: number }).status ?? -1;
+    }
+    expect(status).toBe(2);
+
+    // with a commit: endedAtTime appears and rebuilds are identical
+    execFileSync("git", ["init", "-q"], { cwd: dir });
+    execFileSync("git", ["-c", "user.email=t@t", "-c", "user.name=t", "add", "-A"], { cwd: dir });
+    execFileSync(
+      "git",
+      ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "init"],
+      { cwd: dir },
+    );
+    execFileSync(process.execPath, [cli, "build", "--out", join(dir, "a.ttl")], {
+      encoding: "utf8",
+      cwd: dir,
+    });
+    execFileSync(process.execPath, [cli, "build", "--out", join(dir, "b.ttl")], {
+      encoding: "utf8",
+      cwd: dir,
+    });
+    const a = readFileSync(join(dir, "a.ttl"), "utf8");
+    expect(a).toBe(readFileSync(join(dir, "b.ttl"), "utf8"));
+    expect(a).toMatch(/prov:endedAtTime "[^"]+"\^\^xsd:dateTime/);
   });
 
   it("exits 2 when no inputs match", () => {

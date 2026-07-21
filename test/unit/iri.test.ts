@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   conceptSlug,
+  mintAgentIri,
+  mintBuildActivityIri,
   mintConceptIri,
   mintDocIri,
+  mintGraphIri,
   mintSchemeIri,
   mintSectionIri,
   normalizeDocPath,
@@ -95,6 +98,24 @@ describe("conceptSlug / mintConceptIri", () => {
   it("mints concept IRIs in a shared namespace", () => {
     expect(mintConceptIri("https://example.com/kg/", "Getting Started")).toBe(
       "https://example.com/kg/concept/getting-started",
+    );
+  });
+});
+
+describe("provenance IRIs", () => {
+  it("mints agent IRIs from names in a shared namespace", () => {
+    expect(mintAgentIri("https://example.com/kg/", "Jane Doe")).toBe(
+      "https://example.com/kg/agent/jane-doe",
+    );
+    expect(mintAgentIri("https://example.com/kg/", "claude-sonnet-4-5")).toBe(
+      "https://example.com/kg/agent/claude-sonnet-4-5",
+    );
+  });
+
+  it("mints the graph and build-activity nodes", () => {
+    expect(mintGraphIri("https://example.com/kg/")).toBe("https://example.com/kg/graph");
+    expect(mintBuildActivityIri("https://example.com/kg/")).toBe(
+      "https://example.com/kg/activity/build",
     );
   });
 });

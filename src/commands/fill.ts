@@ -14,6 +14,7 @@ import { discoverFiles } from "../core/discover.js";
 import {
   applyKgFields,
   existingKgFields,
+  existingProvenance,
   frontmatterKind,
 } from "../core/frontmatter-edit.js";
 import { DockgError } from "../types.js";
@@ -196,9 +197,35 @@ export async function runFill(opts: FillOptions = {}): Promise<FillReport> {
       for (const field of RELATION_FIELDS) delete narrowed[field];
     }
 
-    const applied = applyKgFields(content, path, narrowed, { force: opts.force });
+    // Which fields will actually be written (mirrors applyKgFields' filter);
+    // empty means nothing to do — and no provenance entry either.
+    const realFields = Object.keys(narrowed).filter((k) => {
+      const v = narrowed[k];
+      return v !== undefined && v !== null && !(Array.isArray(v) && v.length === 0);
+    });
+    if (realFields.length === 0) {
+      return { path, status: "nothing-proposed", fields: [], preserved: [], cached };
+    }
 
-    if (applied.applied.length === 0) {
+    // Record machine attribution alongside the fields, in the SAME write.
+    // Fields accumulate across runs (union with any prior entry) so a second
+    // run filling different fields doesn't erase the first run's attribution.
+    const values: Record<string, unknown> = { ...narrowed };
+    if (config.fill.writeProvenance) {
+      const prior = existingProvenance(content);
+      values["provenance"] = {
+        generatedBy: identity.model,
+        fields: [...new Set([...(prior?.fields ?? []), ...realFields])].sort(),
+      };
+    }
+
+    const applied = applyKgFields(content, path, values, {
+      force: opts.force,
+      alwaysOverwrite: ["provenance"],
+    });
+    const reportedFields = applied.applied.filter((f) => f !== "provenance");
+
+    if (reportedFields.length === 0) {
       return {
         path,
         status: "nothing-proposed",
@@ -212,7 +239,7 @@ export async function runFill(opts: FillOptions = {}): Promise<FillReport> {
     return {
       path,
       status: opts.dryRun ? "proposed" : "filled",
-      fields: applied.applied,
+      fields: reportedFields,
       preserved: applied.skipped,
       cached,
     };

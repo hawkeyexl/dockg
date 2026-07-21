@@ -7,6 +7,7 @@ export const NS = {
   dcterms: "http://purl.org/dc/terms/",
   dockg: "https://dockg.dev/ns#",
   foaf: "http://xmlns.com/foaf/0.1/",
+  prov: "http://www.w3.org/ns/prov#",
   rdf: "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
   schema: "https://schema.org/",
   skos: "http://www.w3.org/2004/02/skos/core#",

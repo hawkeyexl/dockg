@@ -31,7 +31,7 @@ const processor = unified()
   .use(remarkFrontmatter, ["yaml", "toml"]);
 
 /** True when the target has a URI scheme (http:, https:, mailto:, ...). */
-function hasScheme(target: string): boolean {
+export function hasScheme(target: string): boolean {
   return /^[a-z][a-z0-9+.-]*:/i.test(target);
 }
 
@@ -40,7 +40,7 @@ function hasScheme(target: string): boolean {
  * pure string math (posix, OS-independent). Returns null when the target
  * escapes the corpus root.
  */
-function resolveRelative(docPath: string, target: string): string | null {
+export function resolveRelative(docPath: string, target: string): string | null {
   const baseSegments = normalizeDocPath(docPath).split("/").slice(0, -1);
   const segments = [...baseSegments];
   for (const part of target.split("/")) {

@@ -1,10 +1,22 @@
 @prefix dcterms: <http://purl.org/dc/terms/> .
 @prefix dockg: <https://dockg.dev/ns#> .
 @prefix foaf: <http://xmlns.com/foaf/0.1/> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
 @prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
 @prefix schema: <https://schema.org/> .
 @prefix skos: <http://www.w3.org/2004/02/skos/core#> .
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+<https://example.com/kg/activity/build> a prov:Activity ;
+  prov:used <https://example.com/kg/doc/docs/configuration.md>, <https://example.com/kg/doc/docs/getting-started.md>, <https://example.com/kg/doc/docs/no-frontmatter.md>, <https://example.com/kg/doc/docs/windows-notes.md> ;
+  prov:wasAssociatedWith <https://example.com/kg/agent/dockg> .
+
+<https://example.com/kg/agent/dockg> a prov:SoftwareAgent ;
+  foaf:name "dockg" ;
+  dockg:version "0.1.0" .
+
+<https://example.com/kg/agent/jane-doe> a prov:Person ;
+  foaf:name "Jane Doe" .
 
 <https://example.com/kg/concept/administration> a skos:Concept ;
   skos:inScheme <https://example.com/kg/scheme> ;
@@ -29,7 +41,7 @@
   skos:inScheme <https://example.com/kg/scheme> ;
   skos:prefLabel "setup" .
 
-<https://example.com/kg/doc/docs/configuration.md> a dockg:Document ;
+<https://example.com/kg/doc/docs/configuration.md> a prov:Entity, dockg:Document ;
   dcterms:hasPart <https://example.com/kg/doc/docs/configuration.md#configuration> ;
   dcterms:references <https://example.com/kg/doc/docs/getting-started.md>, <https://example.com/kg/doc/docs/getting-started.md#install>, <https://json-schema.org/> ;
   dcterms:subject <https://example.com/kg/concept/configuration>, <https://example.com/kg/concept/reference> ;
@@ -54,15 +66,17 @@
   dockg:level 2 ;
   dockg:order 1 .
 
-<https://example.com/kg/doc/docs/getting-started.md> a dockg:Document ;
+<https://example.com/kg/doc/docs/getting-started.md> a prov:Entity, dockg:Document ;
   dcterms:created "2026-05-01"^^xsd:date ;
-  dcterms:creator "Jane Doe" ;
+  dcterms:creator <https://example.com/kg/agent/jane-doe> ;
   dcterms:description "Install and configure the tool." ;
   dcterms:hasPart <https://example.com/kg/doc/docs/getting-started.md#getting-started> ;
   dcterms:modified "2026-07-01"^^xsd:date ;
   dcterms:references <https://example.com/kg/doc/docs/configuration.md> ;
   dcterms:subject <https://example.com/kg/concept/installation>, <https://example.com/kg/concept/setup> ;
   dcterms:title "Getting Started" ;
+  prov:generatedAtTime "2026-05-01"^^xsd:date ;
+  prov:wasAttributedTo <https://example.com/kg/agent/jane-doe> ;
   dockg:codeLanguage "bash", "python" ;
   dockg:path "docs/getting-started.md" ;
   schema:image <https://example.com/kg/file/docs/img/arch.png> .
@@ -83,7 +97,7 @@
   dockg:level 2 ;
   dockg:order 2 .
 
-<https://example.com/kg/doc/docs/no-frontmatter.md> a dockg:Document ;
+<https://example.com/kg/doc/docs/no-frontmatter.md> a prov:Entity, dockg:Document ;
   dcterms:hasPart <https://example.com/kg/doc/docs/no-frontmatter.md#loose-notes> ;
   dcterms:references <https://example.org/page> ;
   dcterms:title "Loose Notes" ;
@@ -95,7 +109,7 @@
   dockg:level 1 ;
   dockg:order 1 .
 
-<https://example.com/kg/doc/docs/windows-notes.md> a dockg:Document ;
+<https://example.com/kg/doc/docs/windows-notes.md> a prov:Entity, dockg:Document ;
   dcterms:hasPart <https://example.com/kg/doc/docs/windows-notes.md#windows-notes> ;
   dcterms:references <https://example.com/kg/doc/docs/configuration.md> ;
   dcterms:title "Windows Notes" ;
@@ -105,6 +119,9 @@
   dcterms:title "Windows Notes" ;
   dockg:level 1 ;
   dockg:order 1 .
+
+<https://example.com/kg/graph> a prov:Entity ;
+  prov:wasGeneratedBy <https://example.com/kg/activity/build> .
 
 <https://example.com/kg/scheme> a skos:ConceptScheme ;
   dcterms:title "dockg concepts" .

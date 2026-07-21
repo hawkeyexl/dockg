@@ -4,8 +4,12 @@ export { loadConfig, parseConfig, type DockgConfig, type DeriveSource, type Fill
 export { discoverFiles } from "./core/discover.js";
 export {
   conceptSlug,
+  encodeSegment,
+  mintAgentIri,
+  mintBuildActivityIri,
   mintConceptIri,
   mintDocIri,
+  mintGraphIri,
   mintSchemeIri,
   mintSectionIri,
   normalizeDocPath,
@@ -15,7 +19,13 @@ export { analyzeDoc } from "./core/analyze.js";
 export { deriveGraph, type Quad, type Term } from "./core/derive.js";
 export { emitTurtle } from "./core/emit.js";
 export { loadGraph, expandTerm, compactIri } from "./core/load.js";
-export { applyKgFields, existingKgFields, type KgApplyResult } from "./core/frontmatter-edit.js";
+export {
+  applyKgFields,
+  existingKgFields,
+  existingProvenance,
+  frontmatterKind,
+  type KgApplyResult,
+} from "./core/frontmatter-edit.js";
 export { NS, PREFIXES } from "./core/vocab.js";
 export { runBuild, type BuildOptions, type BuildResult } from "./commands/build.js";
 export { runValidate, type ValidateOptions, type ValidateResult } from "./commands/validate.js";

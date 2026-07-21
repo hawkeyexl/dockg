@@ -63,10 +63,20 @@ export interface KgApplyResult {
   skipped: string[];
 }
 
-/** Set `value` on the kg map; arrays render flow-style: [a, b]. */
+/** Render every sequence under `node` flow-style: [a, b]. */
+function flowSeqs(node: unknown): void {
+  if (node instanceof YAMLSeq) {
+    node.flow = true;
+    for (const item of node.items) flowSeqs(item);
+  } else if (node instanceof YAMLMap) {
+    for (const item of node.items) flowSeqs(item.value);
+  }
+}
+
+/** Set `value` on the kg map; arrays (incl. nested) render flow-style. */
 function setField(doc: Document, kg: YAMLMap, field: string, value: unknown): void {
   const node = doc.createNode(value);
-  if (node instanceof YAMLSeq) node.flow = true;
+  flowSeqs(node);
   kg.set(field, node);
 }
 
@@ -79,7 +89,7 @@ export function applyKgFields(
   content: string,
   path: string,
   values: Record<string, unknown>,
-  options: { force?: boolean } = {},
+  options: { force?: boolean; alwaysOverwrite?: string[] } = {},
 ): KgApplyResult {
   const entries = Object.entries(values).filter(
     ([, v]) => v !== undefined && v !== null && !(Array.isArray(v) && v.length === 0),
@@ -99,11 +109,7 @@ export function applyKgFields(
     const eol: "\n" | "\r\n" = content.includes("\r\n") ? "\r\n" : "\n";
     const doc = new Document({ kg: Object.fromEntries(entries) });
     const kg = doc.get("kg", true);
-    if (isMap(kg)) {
-      for (const item of kg.items) {
-        if (item.value instanceof YAMLSeq) item.value.flow = true;
-      }
-    }
+    if (isMap(kg)) flowSeqs(kg);
     let block = doc.toString();
     if (eol === "\r\n") block = block.replace(/(?<!\r)\n/g, "\r\n");
     return {
@@ -132,8 +138,9 @@ export function applyKgFields(
 
   const applied: string[] = [];
   const skipped: string[] = [];
+  const alwaysOverwrite = new Set(options.alwaysOverwrite ?? []);
   for (const [field, value] of entries) {
-    if (kgMap.has(field) && !options.force) {
+    if (kgMap.has(field) && !options.force && !alwaysOverwrite.has(field)) {
       skipped.push(field);
       continue;
     }
@@ -148,6 +155,25 @@ export function applyKgFields(
   let newBlock = doc.toString();
   if (split.eol === "\r\n") newBlock = newBlock.replace(/(?<!\r)\n/g, "\r\n");
   return { content: split.open + newBlock + split.suffix, applied, skipped };
+}
+
+/** The doc's existing kg.provenance entry, if any (for merging across runs). */
+export function existingProvenance(
+  content: string,
+): { generatedBy?: string; fields: string[] } | undefined {
+  const split = splitYamlFrontmatter(content, "");
+  if (split === null) return undefined;
+  const doc = parseDocument(split.block);
+  if (doc.errors.length > 0) return undefined;
+  const plain = (doc.toJS() as { kg?: { provenance?: unknown } } | null)?.kg?.provenance;
+  if (!plain || typeof plain !== "object" || Array.isArray(plain)) return undefined;
+  const record = plain as Record<string, unknown>;
+  return {
+    generatedBy: typeof record["generatedBy"] === "string" ? record["generatedBy"] : undefined,
+    fields: Array.isArray(record["fields"])
+      ? record["fields"].filter((f): f is string => typeof f === "string")
+      : [],
+  };
 }
 
 /** Fields already present on the doc's `kg` map ([] when none). */

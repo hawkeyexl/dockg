@@ -28,11 +28,19 @@ out: kg/graph.ttl
 
 # What to derive triples from. Remove entries to opt out.
 build:
-  derive: [frontmatter, sections, links, tags, images, code]
+  derive: [frontmatter, sections, links, tags, images, code, provenance]
 
-# Schemas \`dockg validate\` checks via docmeta.
-validate:
-  schemas: ["dockg:frontmatter:0.1"]
+# PROV-O settings. gitTime stamps the build activity with the corpus repo's
+# HEAD committer date — deterministic per commit; wall-clock time never
+# enters the graph.
+provenance:
+  gitTime: false
+
+# Schemas \`dockg validate\` checks via docmeta. Default: the frontmatter
+# schema bundled with dockg (schemas/frontmatter-0.2.json). Override with
+# file paths, URLs, or docmeta built-in ids:
+# validate:
+#   schemas: ["./my-schema.json"]
 
 # LLM settings for \`dockg fill\` (SKOS frontmatter proposals).
 fill:
@@ -44,6 +52,8 @@ fill:
   cacheDir: .dockg/cache
   # broader/narrower are opt-in: hierarchy proposals hallucinate most.
   fields: [prefLabel, altLabels, related, subjects]
+  # Record kg.provenance (model + machine-filled fields) on filled docs.
+  writeProvenance: true
 `;
 
 export function runInit(cwd = process.cwd()): string {

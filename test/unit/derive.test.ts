@@ -13,6 +13,7 @@ const ALL_SOURCES: DeriveSource[] = [
   "tags",
   "images",
   "code",
+  "provenance",
 ];
 
 function docs(files: Record<string, string>) {
@@ -22,8 +23,17 @@ function docs(files: Record<string, string>) {
   );
 }
 
-function graph(files: Record<string, string>, sources = ALL_SOURCES): Quad[] {
-  return deriveGraph(docs(files), { baseIri: BASE, derive: sources });
+function graph(
+  files: Record<string, string>,
+  sources = ALL_SOURCES,
+  extra: { toolVersion?: string; gitTime?: string } = {},
+): Quad[] {
+  return deriveGraph(docs(files), {
+    baseIri: BASE,
+    derive: sources,
+    toolVersion: extra.toolVersion ?? "0.0.0-test",
+    gitTime: extra.gitTime,
+  });
 }
 
 function has(quads: Quad[], s: string, p: string, o: Term): boolean {
@@ -59,14 +69,19 @@ describe("deriveGraph — document basics", () => {
     expect(has(g2, DOC, `${NS.dcterms}title`, lit("H1 Title"))).toBe(true);
   });
 
-  it("maps description, creator, dates, and language", () => {
+  it("maps description, creator (as agent node), dates, and language", () => {
     const g = graph({
       "docs/a.md":
-        "---\ndescription: Desc\nauthor: Jane\ndate: 2026-05-01\nupdated: 2026-07-01\nlang: en\n---\n",
+        "---\ndescription: Desc\nauthor: Jane Doe\ndate: 2026-05-01\nupdated: 2026-07-01\nlang: en\n---\n",
     });
+    const agent = `${BASE}agent/jane-doe`;
     expect(has(g, DOC, `${NS.dcterms}description`, lit("Desc"))).toBe(true);
-    expect(has(g, DOC, `${NS.dcterms}creator`, lit("Jane"))).toBe(true);
+    expect(has(g, DOC, `${NS.dcterms}creator`, iri(agent))).toBe(true);
+    expect(has(g, DOC, `${NS.prov}wasAttributedTo`, iri(agent))).toBe(true);
+    expect(has(g, agent, `${NS.rdf}type`, iri(`${NS.prov}Person`))).toBe(true);
+    expect(has(g, agent, `${NS.foaf}name`, lit("Jane Doe"))).toBe(true);
     expect(has(g, DOC, `${NS.dcterms}created`, lit("2026-05-01", `${NS.xsd}date`))).toBe(true);
+    expect(has(g, DOC, `${NS.prov}generatedAtTime`, lit("2026-05-01", `${NS.xsd}date`))).toBe(true);
     expect(has(g, DOC, `${NS.dcterms}modified`, lit("2026-07-01", `${NS.xsd}date`))).toBe(true);
     expect(has(g, DOC, `${NS.dcterms}language`, lit("en"))).toBe(true);
   });
@@ -80,10 +95,110 @@ describe("deriveGraph — document basics", () => {
     ).toBe(true);
   });
 
-  it("supports authors arrays", () => {
-    const g = graph({ "docs/a.md": "---\nauthors: [Jane, Sam]\n---\n" });
+  it("supports authors arrays (agent node per author, converging)", () => {
+    const g = graph({
+      "docs/a.md": "---\nauthors: [Jane, Sam]\n---\n",
+      "docs/b.md": "---\nauthor: Jane\n---\n",
+    });
+    expect(has(g, DOC, `${NS.dcterms}creator`, iri(`${BASE}agent/jane`))).toBe(true);
+    expect(has(g, DOC, `${NS.dcterms}creator`, iri(`${BASE}agent/sam`))).toBe(true);
+    const janeTypes = g.filter(
+      (q) => q.s === `${BASE}agent/jane` && q.p === `${NS.rdf}type`,
+    );
+    expect(janeTypes).toHaveLength(1);
+  });
+
+  it("falls back to creator literals when the provenance source is off", () => {
+    const g = graph({ "docs/a.md": "---\nauthor: Jane\n---\n" }, ["frontmatter"]);
     expect(has(g, DOC, `${NS.dcterms}creator`, lit("Jane"))).toBe(true);
-    expect(has(g, DOC, `${NS.dcterms}creator`, lit("Sam"))).toBe(true);
+    expect(g.some((q) => q.p === `${NS.prov}wasAttributedTo`)).toBe(false);
+    expect(g.some((q) => q.s.startsWith(`${BASE}agent/`))).toBe(false);
+  });
+});
+
+describe("deriveGraph — provenance", () => {
+  it("types every doc as prov:Entity when the source is on", () => {
+    const g = graph({ "docs/a.md": "# A\n" });
+    expect(has(g, DOC, `${NS.rdf}type`, iri(`${NS.prov}Entity`))).toBe(true);
+    const off = graph({ "docs/a.md": "# A\n" }, ["frontmatter"]);
+    expect(has(off, DOC, `${NS.rdf}type`, iri(`${NS.prov}Entity`))).toBe(false);
+  });
+
+  it("maps kg.derivedFrom to resolved docs, URLs, and broken links", () => {
+    const g = graph({
+      "docs/a.md":
+        '---\nkg:\n  derivedFrom: [b.md, "https://example.org/spec", missing.md]\n---\n',
+      "docs/b.md": "# B\n",
+    });
+    expect(has(g, DOC, `${NS.prov}wasDerivedFrom`, iri(`${BASE}doc/docs/b.md`))).toBe(true);
+    expect(has(g, DOC, `${NS.prov}wasDerivedFrom`, iri("https://example.org/spec"))).toBe(true);
+    expect(has(g, DOC, `${NS.dockg}brokenLink`, lit("missing.md"))).toBe(true);
+  });
+
+  it("maps kg.generatedBy (and page-level generatedBy fallback) to a generation activity", () => {
+    const g = graph({
+      "docs/a.md": "---\nkg:\n  generatedBy: claude-sonnet-4-5\n---\n",
+      "docs/b.md": "---\ngeneratedBy: gpt-4o\n---\n",
+    });
+    const activity = `${DOC}#generation`;
+    const model = `${BASE}agent/claude-sonnet-4-5`;
+    expect(has(g, DOC, `${NS.prov}wasGeneratedBy`, iri(activity))).toBe(true);
+    expect(has(g, activity, `${NS.rdf}type`, iri(`${NS.prov}Activity`))).toBe(true);
+    expect(has(g, activity, `${NS.prov}wasAssociatedWith`, iri(model))).toBe(true);
+    expect(has(g, model, `${NS.rdf}type`, iri(`${NS.prov}SoftwareAgent`))).toBe(true);
+    expect(has(g, model, `${NS.foaf}name`, lit("claude-sonnet-4-5"))).toBe(true);
+    // page-level fallback
+    expect(
+      has(g, `${BASE}doc/docs/b.md`, `${NS.prov}wasGeneratedBy`, iri(`${BASE}doc/docs/b.md#generation`)),
+    ).toBe(true);
+  });
+
+  it("maps kg.provenance to a fill activity attributing the topic concept, not shared subjects", () => {
+    const g = graph({
+      "docs/a.md":
+        "---\nkg:\n  prefLabel: Config\n  subjects: [shared-tag]\n  provenance:\n    generatedBy: claude-sonnet-4-5\n    fields: [prefLabel, subjects]\n---\n",
+      "docs/b.md": "---\ntags: [shared-tag]\n---\n",
+    });
+    const activity = `${DOC}#kg-fill`;
+    const topic = `${BASE}concept/config`;
+    const shared = `${BASE}concept/shared-tag`;
+    expect(has(g, activity, `${NS.rdf}type`, iri(`${NS.prov}Activity`))).toBe(true);
+    expect(has(g, activity, `${NS.prov}wasAssociatedWith`, iri(`${BASE}agent/claude-sonnet-4-5`))).toBe(true);
+    expect(has(g, activity, `${NS.prov}generated`, iri(topic))).toBe(true);
+    expect(has(g, activity, `${NS.dockg}filledField`, lit("prefLabel"))).toBe(true);
+    expect(has(g, activity, `${NS.dockg}filledField`, lit("subjects"))).toBe(true);
+    // the shared concept itself is never attributed
+    expect(g.some((q) => q.s === shared && q.p.startsWith(NS.prov))).toBe(false);
+    expect(g.some((q) => q.p === `${NS.prov}generated` && q.o.value === shared)).toBe(false);
+  });
+
+  it("emits the graph-level build activity with tool agent and prov:used edges", () => {
+    const g = graph({ "docs/a.md": "# A\n" }, ALL_SOURCES, { toolVersion: "1.2.3" });
+    const graphNode = `${BASE}graph`;
+    const activity = `${BASE}activity/build`;
+    const tool = `${BASE}agent/dockg`;
+    expect(has(g, graphNode, `${NS.rdf}type`, iri(`${NS.prov}Entity`))).toBe(true);
+    expect(has(g, graphNode, `${NS.prov}wasGeneratedBy`, iri(activity))).toBe(true);
+    expect(has(g, activity, `${NS.prov}used`, iri(DOC))).toBe(true);
+    expect(has(g, activity, `${NS.prov}wasAssociatedWith`, iri(tool))).toBe(true);
+    expect(has(g, tool, `${NS.rdf}type`, iri(`${NS.prov}SoftwareAgent`))).toBe(true);
+    expect(has(g, tool, `${NS.dockg}version`, lit("1.2.3"))).toBe(true);
+  });
+
+  it("adds prov:endedAtTime only when gitTime is provided", () => {
+    const time = "2026-07-20T12:00:00-07:00";
+    const g = graph({ "docs/a.md": "# A\n" }, ALL_SOURCES, { gitTime: time });
+    expect(
+      has(g, `${BASE}activity/build`, `${NS.prov}endedAtTime`, lit(time, `${NS.xsd}dateTime`)),
+    ).toBe(true);
+    const without = graph({ "docs/a.md": "# A\n" });
+    expect(without.some((q) => q.p === `${NS.prov}endedAtTime`)).toBe(false);
+  });
+
+  it("emits no graph-level block when the provenance source is off", () => {
+    const g = graph({ "docs/a.md": "# A\n" }, ["frontmatter", "tags"]);
+    expect(g.some((q) => q.s === `${BASE}graph`)).toBe(false);
+    expect(g.some((q) => q.s === `${BASE}activity/build`)).toBe(false);
   });
 });
 

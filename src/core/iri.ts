@@ -55,3 +55,18 @@ export function mintConceptIri(base: string, label: string): string {
 export function mintSchemeIri(base: string): string {
   return `${base}scheme`;
 }
+
+/** `{base}agent/{slug(name)}` — people and software agents share one namespace. */
+export function mintAgentIri(base: string, name: string): string {
+  return `${base}agent/${encodeSegment(conceptSlug(name))}`;
+}
+
+/** The graph itself as a prov:Entity. */
+export function mintGraphIri(base: string): string {
+  return `${base}graph`;
+}
+
+/** The build run as a prov:Activity. */
+export function mintBuildActivityIri(base: string): string {
+  return `${base}activity/build`;
+}

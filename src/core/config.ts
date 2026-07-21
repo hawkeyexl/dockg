@@ -19,7 +19,8 @@ export type DeriveSource =
   | "links"
   | "tags"
   | "images"
-  | "code";
+  | "code"
+  | "provenance";
 
 export type FillField =
   | "prefLabel"
@@ -57,6 +58,10 @@ export interface DockgConfig {
   routes: RouteMapping[];
   build: { derive: DeriveSource[] };
   validate: { schemas: string[] };
+  provenance: {
+    /** Stamp the build activity with the corpus HEAD committer date. */
+    gitTime: boolean;
+  };
   fill: {
     provider: ProviderName;
     /** Model override; null = provider default. */
@@ -70,6 +75,8 @@ export interface DockgConfig {
     maxCostUsd: number | null;
     cacheDir: string;
     fields: FillField[];
+    /** Record kg.provenance on filled docs. */
+    writeProvenance: boolean;
     pricing?: Pricing;
   };
   /** Absolute path of the loaded config file. */
@@ -87,6 +94,7 @@ export const ALL_DERIVE_SOURCES: DeriveSource[] = [
   "tags",
   "images",
   "code",
+  "provenance",
 ];
 
 /** Default candidates for extensionless link targets (routes AND relative links). */
@@ -144,7 +152,11 @@ export function parseConfig(text: string, configPath: string): DockgConfig {
       derive: r.build?.derive ?? [...ALL_DERIVE_SOURCES],
     },
     validate: {
-      schemas: r.validate?.schemas ?? ["dockg:frontmatter:0.1"],
+      // Empty means: use the schema bundled with dockg (schemas/frontmatter-0.2.json).
+      schemas: r.validate?.schemas ?? [],
+    },
+    provenance: {
+      gitTime: r.provenance?.gitTime ?? false,
     },
     fill: {
       provider: r.fill?.provider ?? "anthropic",
@@ -156,6 +168,7 @@ export function parseConfig(text: string, configPath: string): DockgConfig {
       maxCostUsd: r.fill?.maxCostUsd === undefined ? 5 : r.fill.maxCostUsd,
       cacheDir: r.fill?.cacheDir ?? ".dockg/cache",
       fields: r.fill?.fields ?? ["prefLabel", "altLabels", "related", "subjects"],
+      writeProvenance: r.fill?.writeProvenance ?? true,
       pricing: r.fill?.pricing,
     },
     configPath: abs,

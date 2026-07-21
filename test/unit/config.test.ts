@@ -19,8 +19,12 @@ describe("parseConfig", () => {
       "tags",
       "images",
       "code",
+      "provenance",
     ]);
-    expect(c.validate.schemas).toEqual(["dockg:frontmatter:0.1"]);
+    // empty = use the schema bundled with dockg (schemas/frontmatter-0.2.json)
+    expect(c.validate.schemas).toEqual([]);
+    expect(c.provenance.gitTime).toBe(false);
+    expect(c.fill.writeProvenance).toBe(true);
     expect(c.fill.provider).toBe("anthropic");
     expect(c.fill.temperature).toBe(0);
     expect(c.fill.maxCostUsd).toBe(5);
@@ -80,6 +84,15 @@ describe("parseConfig", () => {
     expect(() =>
       parseConfig("version: 1\nroutes:\n  - basePath: /docs\n", "/tmp/c.yaml"),
     ).toThrow(DockgError);
+  });
+
+  it("parses provenance and fill.writeProvenance overrides", () => {
+    const c = parseConfig(
+      "version: 1\nprovenance:\n  gitTime: true\nfill:\n  writeProvenance: false\n",
+      "/tmp/dockg.config.yaml",
+    );
+    expect(c.provenance.gitTime).toBe(true);
+    expect(c.fill.writeProvenance).toBe(false);
   });
 
   it("rejects an unknown derive source", () => {

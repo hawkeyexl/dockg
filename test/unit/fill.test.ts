@@ -106,6 +106,66 @@ describe("runFill", () => {
     expect(report.exitCode).toBe(1);
   });
 
+  it("writes kg.provenance naming the model and filled fields, in the same write", async () => {
+    const dir = setup({ "a.md": "---\ntitle: T\n---\n\n# T\n" });
+    const provider = new MockProvider([{ json: PROPOSAL }], "test-model");
+    const report = await runFill({ cwd: dir, providerInstance: provider });
+    expect(report.results[0]).toMatchObject({ status: "filled" });
+    const written = readFileSync(join(dir, "a.md"), "utf8");
+    expect(written).toContain("provenance:");
+    expect(written).toContain("generatedBy: test-model");
+    expect(written).toMatch(/fields: \[ altLabels, prefLabel, related, subjects \]/);
+    expect(written.endsWith("# T\n")).toBe(true); // body still byte-preserved
+    // provenance is metadata, not a reported filled field
+    expect(report.results[0]?.fields).not.toContain("provenance");
+  });
+
+  it("unions provenance fields across runs instead of erasing prior attribution", async () => {
+    const dir = setup(
+      { "a.md": "---\ntitle: T\n---\n" },
+      "fill:\n  fields: [prefLabel]\n",
+    );
+    await runFill({
+      cwd: dir,
+      providerInstance: new MockProvider([{ json: { prefLabel: "X" } }], "m1"),
+    });
+    // second run with a broader field set fills subjects too
+    const { writeFileSync: write } = await import("node:fs");
+    write(
+      join(dir, "dockg.config.yaml"),
+      'version: 1\ninputs: ["*.md"]\nfill:\n  fields: [prefLabel, subjects]\n',
+    );
+    await runFill({
+      cwd: dir,
+      providerInstance: new MockProvider([{ json: { subjects: ["s"] } }], "m2"),
+    });
+    const written = readFileSync(join(dir, "a.md"), "utf8");
+    expect(written).toMatch(/fields: \[ prefLabel, subjects \]/);
+  });
+
+  it("skips provenance write-back when writeProvenance is false", async () => {
+    const dir = setup(
+      { "a.md": "---\ntitle: T\n---\n" },
+      "fill:\n  writeProvenance: false\n",
+    );
+    const provider = new MockProvider([{ json: PROPOSAL }]);
+    await runFill({ cwd: dir, providerInstance: provider });
+    expect(readFileSync(join(dir, "a.md"), "utf8")).not.toContain("provenance");
+  });
+
+  it("does not treat an existing provenance entry as a fillable field", async () => {
+    const dir = setup(
+      {
+        "a.md":
+          "---\nkg:\n  prefLabel: X\n  altLabels: [y]\n  related: [z]\n  subjects: [s]\n  provenance:\n    generatedBy: old\n    fields: [prefLabel]\n---\n",
+      },
+    );
+    const provider = new MockProvider([{ json: PROPOSAL }]);
+    const report = await runFill({ cwd: dir, providerInstance: provider });
+    expect(report.results[0]).toMatchObject({ status: "complete" });
+    expect(provider.requests).toHaveLength(0);
+  });
+
   it("reports TOML-frontmatter docs as per-doc errors without corrupting them", async () => {
     const toml = '+++\ntitle = "Hugo"\n+++\n\n# Hugo doc\n';
     const dir = setup({ "a.md": toml, "b.md": "---\ntitle: OK\n---\n" });
