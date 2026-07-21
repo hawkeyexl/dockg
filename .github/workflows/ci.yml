@@ -6,53 +6,30 @@ on:
   pull_request:
   workflow_dispatch:
 
-env:
-  # dockg depends on docmeta via file:../docmeta and needs its
-  # extractFrontmatter export, which is not on docmeta main yet; switch to
-  # `main` once that lands there.
-  DOCMETA_REF: feat/docevals-builtin-schema
-
 jobs:
   build-test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-        with:
-          path: dockg
-      - uses: actions/checkout@v7
-        with:
-          repository: hawkeyexl/docmeta
-          ref: ${{ env.DOCMETA_REF }}
-          path: docmeta
       - uses: actions/setup-node@v6
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: dockg/package-lock.json
 
-      # The file:../docmeta dependency needs docmeta built first.
-      - run: npm ci
-        working-directory: docmeta
-      - run: npm run build
-        working-directory: docmeta
-
-      # npm install (not ci): the lock includes the file:../docmeta tree,
-      # whose optional platform deps differ between the Windows dev machine
-      # and Linux CI, so a strict lock check cannot be satisfied on both.
+      # npm install, not ci: the committed lock is generated on Windows and
+      # omits the Linux-side optional deps of @napi-rs/wasm-runtime
+      # (@emnapi/core, @emnapi/runtime), which rolldown's wasm binding pulls
+      # in — a strict lock check can't be satisfied on both platforms.
       - run: npm install
-        working-directory: dockg
       - run: npm run typecheck
-        working-directory: dockg
       - run: npm run build
-        working-directory: dockg
       - run: npm test
-        working-directory: dockg
 
       # Determinism gate: byte-identical output is the product contract.
       # (Golden comparison normalizes the dockg:version literal so release
       # version bumps don't invalidate it.)
       - name: Determinism gate
-        working-directory: dockg/test/fixtures/corpus
+        working-directory: test/fixtures/corpus
         run: |
           node ../../../dist/cli.js build --out /tmp/gate-a.ttl
           node ../../../dist/cli.js build --out /tmp/gate-b.ttl

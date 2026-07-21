@@ -13,18 +13,22 @@ git fetch origin
 git rebase origin/main
 ```
 
-**Build the docmeta sibling before installing.** dockg depends on docmeta via
-`file:../docmeta`, so a clean environment needs the sibling cloned and built first:
+**Install dependencies.** dockg consumes [docmeta](https://www.npmjs.com/package/docmeta)
+from the npm registry (`^1.3.0`), so a clean checkout needs nothing but:
 
 ```bash
-git clone https://github.com/hawkeyexl/docmeta ../docmeta   # at the ref CI pins (DOCMETA_REF in .github/workflows/ci.yml)
-cd ../docmeta && npm ci && npm run build && cd -
 npm install
 ```
 
-CI mirrors this exactly. The dockg install step uses `npm install` (not `npm ci`) deliberately:
-the lock file spans the `file:` dependency's tree, whose optional platform deps differ between
-Windows dev machines and Linux CI.
+CI mirrors this exactly. Use `npm install` rather than `npm ci`: the committed lock is
+generated on Windows and omits the Linux-side optional dependencies of
+`@napi-rs/wasm-runtime` (rolldown's wasm binding), so a strict lock check cannot pass on
+both platforms. Regenerating the lock on Linux would just invert the problem.
+
+There is no sibling-checkout step: dockg depended on `file:../docmeta` while docmeta's
+`extractFrontmatter` export was unreleased, and that dependency is gone — never
+reintroduce a `file:`/`link:` spec, since npm publishes them verbatim and
+`prepublishOnly` (scripts/check-publishable.mjs) now refuses to.
 
 Don't reach for `--no-verify` when a husky hook fails — install the missing deps or fix the
 message instead.
@@ -186,7 +190,7 @@ Precedence: `dockg.config.yaml` → Ajv validation → CLI override → runtime.
 ## Related files
 
 - [.github/workflows/ci.yml](.github/workflows/ci.yml) — CI incl. the determinism gate and the
-  docmeta sibling checkout (`DOCMETA_REF` pins the branch until `extractFrontmatter` is on main)
+  determinism gate
 - [.releaserc.json](.releaserc.json) · [commitlint.config.cjs](commitlint.config.cjs) ·
   [.husky/commit-msg](.husky/commit-msg)
 - [schemas/](schemas) — published frontmatter JSON Schemas (the validate default)

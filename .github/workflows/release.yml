@@ -3,7 +3,6 @@
 #   1. Create/install the release GitHub App and add RELEASE_APP_ID /
 #      RELEASE_APP_PRIVATE_KEY secrets (see docmeta docs/maintainers/releasing.md).
 #   2. Configure npm OIDC trusted publishing for this repo + workflow file.
-#   3. Ensure CI checks out a docmeta ref containing dockg:frontmatter:0.1.
 # Then replace `workflow_dispatch` with docmeta's push-branch triggers.
 name: Release
 
@@ -26,7 +25,6 @@ jobs:
     timeout-minutes: 20
     env:
       HUSKY: "0"
-      DOCMETA_REF: feat/docevals-builtin-schema
     steps:
       - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         id: app-token
@@ -38,37 +36,19 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-          path: dockg
-      - uses: actions/checkout@v7
-        with:
-          repository: hawkeyexl/docmeta
-          ref: ${{ env.DOCMETA_REF }}
-          path: docmeta
 
       - uses: actions/setup-node@v6
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: dockg/package-lock.json
 
-      - run: npm ci
-        working-directory: docmeta
-      - run: npm run build
-        working-directory: docmeta
-
-      # npm install (not ci) for the same reason as ci.yml: the lock spans the
-      # file:../docmeta tree, whose optional platform deps differ Windows↔Linux.
+      # npm install for the same reason as ci.yml (platform-skewed lock).
       - run: npm install
-        working-directory: dockg
       - run: npm run typecheck
-        working-directory: dockg
       - run: npm run build
-        working-directory: dockg
       - run: npm test
-        working-directory: dockg
 
       - name: Release
-        working-directory: dockg
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         run: npx semantic-release
