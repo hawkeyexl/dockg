@@ -1,0 +1,143 @@
+/**
+ * OpenAI-compatible provider: works against OpenAI, Azure, Ollama, Groq,
+ * Together, or any server speaking /chat/completions. Prefers strict
+ * json_schema response_format; falls back to json_object + schema-in-prompt
+ * when the server rejects it (older Ollama, some proxies).
+ */
+import { DockgError } from "../../types.js";
+import type {
+  CompleteJSONRequest,
+  CompleteJSONResponse,
+  LlmProvider,
+} from "../types.js";
+
+interface ChatResponse {
+  choices?: { message?: { content?: string } }[];
+  usage?: { prompt_tokens?: number; completion_tokens?: number };
+  error?: { message?: string };
+}
+
+/** Extract a JSON object from content that may carry markdown fences. */
+export function extractJson(content: string): unknown {
+  const trimmed = content
+    .replace(/^\s*```(?:json)?\s*/i, "")
+    .replace(/\s*```\s*$/, "")
+    .trim();
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    const start = trimmed.indexOf("{");
+    const end = trimmed.lastIndexOf("}");
+    if (start >= 0 && end > start) {
+      return JSON.parse(trimmed.slice(start, end + 1));
+    }
+    throw new Error("Response contained no parseable JSON object");
+  }
+}
+
+export class OpenAICompatProvider implements LlmProvider {
+  private supportsJsonSchema = true;
+
+  constructor(
+    private readonly baseUrl: string,
+    private readonly model: string,
+    apiKeyEnv: string,
+    private readonly apiKey: string | undefined = process.env[apiKeyEnv],
+  ) {
+    // Local servers (Ollama) often need no key; only insist for api.openai.com.
+    if (!this.apiKey && baseUrl.includes("api.openai.com")) {
+      throw new DockgError(
+        `OpenAI provider needs ${apiKeyEnv} set (or point baseUrl at a local server)`,
+      );
+    }
+  }
+
+  provider(): string {
+    return "openai";
+  }
+
+  modelName(): string {
+    return this.model;
+  }
+
+  private async chat(body: Record<string, unknown>): Promise<ChatResponse> {
+    const response = await fetch(
+      `${this.baseUrl.replace(/\/$/, "")}/chat/completions`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          ...(this.apiKey ? { authorization: `Bearer ${this.apiKey}` } : {}),
+        },
+        body: JSON.stringify(body),
+      },
+    );
+    const json = (await response.json().catch(() => ({}))) as ChatResponse;
+    if (!response.ok) {
+      const message = json.error?.message ?? `HTTP ${response.status}`;
+      throw new Error(`${message}`);
+    }
+    return json;
+  }
+
+  async completeJSON(req: CompleteJSONRequest): Promise<CompleteJSONResponse> {
+    const base = {
+      model: this.model,
+      temperature: req.temperature,
+      messages: [
+        { role: "system", content: req.system },
+        { role: "user", content: req.user },
+      ],
+    };
+
+    let response: ChatResponse;
+    if (this.supportsJsonSchema) {
+      try {
+        response = await this.chat({
+          ...base,
+          response_format: {
+            type: "json_schema",
+            json_schema: { name: "proposal", strict: true, schema: req.schema },
+          },
+        });
+      } catch (e) {
+        const message = e instanceof Error ? e.message : String(e);
+        if (!/response_format|json_schema/i.test(message)) throw e;
+        this.supportsJsonSchema = false;
+        response = await this.jsonObjectFallback(base, req);
+      }
+    } else {
+      response = await this.jsonObjectFallback(base, req);
+    }
+
+    const content = response.choices?.[0]?.message?.content;
+    if (!content) throw new Error("Empty completion response");
+    return {
+      json: extractJson(content),
+      usage:
+        response.usage?.prompt_tokens != null
+          ? {
+              inputTokens: response.usage.prompt_tokens ?? 0,
+              outputTokens: response.usage.completion_tokens ?? 0,
+            }
+          : undefined,
+    };
+  }
+
+  private jsonObjectFallback(
+    base: Record<string, unknown>,
+    req: CompleteJSONRequest,
+  ): Promise<ChatResponse> {
+    return this.chat({
+      ...base,
+      messages: [
+        {
+          role: "system",
+          content: `${req.system}\n\nRespond with ONLY a JSON object conforming to this JSON Schema:\n${JSON.stringify(req.schema)}`,
+        },
+        { role: "user", content: req.user },
+      ],
+      response_format: { type: "json_object" },
+    });
+  }
+}

@@ -1,2 +1,26 @@
 /** dockg public API. */
 export * from "./types.js";
+export { loadConfig, parseConfig, type DockgConfig, type DeriveSource, type FillField, type Pricing } from "./core/config.js";
+export { discoverFiles } from "./core/discover.js";
+export {
+  conceptSlug,
+  mintConceptIri,
+  mintDocIri,
+  mintSchemeIri,
+  mintSectionIri,
+  normalizeDocPath,
+  resolveBaseIri,
+} from "./core/iri.js";
+export { analyzeDoc } from "./core/analyze.js";
+export { deriveGraph, type Quad, type Term } from "./core/derive.js";
+export { emitTurtle } from "./core/emit.js";
+export { loadGraph, expandTerm, compactIri } from "./core/load.js";
+export { applyKgFields, existingKgFields, type KgApplyResult } from "./core/frontmatter-edit.js";
+export { NS, PREFIXES } from "./core/vocab.js";
+export { runBuild, type BuildOptions, type BuildResult } from "./commands/build.js";
+export { runValidate, type ValidateOptions, type ValidateResult } from "./commands/validate.js";
+export { runQuery, type QueryOptions, type QueryResult } from "./commands/query.js";
+export { runStats, type StatsOptions, type StatsReport } from "./commands/stats.js";
+export { runFill, type FillOptions, type FillReport, type FillDocResult } from "./commands/fill.js";
+export type { LlmProvider, CompleteJSONRequest, CompleteJSONResponse } from "./llm/types.js";
+export { MockProvider, type MockResponse } from "./llm/providers/mock.js";

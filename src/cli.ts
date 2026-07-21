@@ -8,6 +8,7 @@ import { DockgError } from "./types.js";
 import { runBuild } from "./commands/build.js";
 import { renderQuery, runQuery } from "./commands/query.js";
 import { renderValidate, runValidate } from "./commands/validate.js";
+import { renderFill, runFill } from "./commands/fill.js";
 import { renderStats, runStats } from "./commands/stats.js";
 
 const pkg = JSON.parse(
@@ -62,6 +63,39 @@ program
       const result = await runValidate({ globs, config: opts.config });
       console.log(renderValidate(result, opts.format as "pretty" | "json"));
       process.exitCode = result.exitCode;
+    } catch (e) {
+      fail(e);
+    }
+  });
+
+program
+  .command("fill")
+  .description("Propose SKOS `kg:` frontmatter fields with an LLM and write them back")
+  .argument("[globs...]", "Input globs (default: config inputs)")
+  .option("-c, --config <path>", "Path to dockg.config.yaml")
+  .option("-f, --format <format>", "Output format: pretty | json", "pretty")
+  .option("--dry-run", "Report proposals without writing files")
+  .option("--force", "Overwrite human-set kg fields")
+  .option("--no-cache", "Bypass the proposal cache")
+  .option("--max-cost <usd>", "Stop proposing past this cost", (v) =>
+    Number.parseFloat(v),
+  )
+  .option("--provider <name>", "Provider: anthropic | openai | claude-cli | mock")
+  .option("--model <model>", "Model override")
+  .action(async (globs: string[], opts: Record<string, unknown>) => {
+    try {
+      const report = await runFill({
+        globs,
+        config: opts.config as string | undefined,
+        dryRun: opts.dryRun as boolean | undefined,
+        force: opts.force as boolean | undefined,
+        noCache: opts.cache === false,
+        maxCost: opts.maxCost as number | undefined,
+        provider: opts.provider as string | undefined,
+        model: opts.model as string | undefined,
+      });
+      console.log(renderFill(report, opts.format as "pretty" | "json"));
+      process.exitCode = report.exitCode;
     } catch (e) {
       fail(e);
     }
