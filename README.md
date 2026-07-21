@@ -37,7 +37,7 @@ Standard vocabularies wherever a term exists — Dublin Core (`dcterms:`), SKOS 
 | `description` / `author(s)` / `date` / `updated` / `lang` | `dcterms:description` / `dcterms:creator` / `dcterms:created`^^xsd:date / `dcterms:modified` / `dcterms:language` |
 | `tags` / `keywords` | `<doc> dcterms:subject <concept>` ; concept nodes are `skos:Concept` with `skos:prefLabel` and `skos:inScheme` |
 | headings | `dockg:Section` nodes with `dcterms:title`, `dockg:level`, `dockg:order`, nested via `dcterms:hasPart` |
-| internal links | `dcterms:references` to the target doc (or its section when the anchor resolves). Site-root-absolute routes (`/docs/x/`) are skipped — they name published pages, not repo files |
+| internal links | `dcterms:references` to the target doc (or its section when the anchor resolves). Extensionless relative links try `.md`/`.mdx` and index files. Site-root-absolute routes (`/docs/x/`) resolve via [route mappings](#route-mappings); without a mapping they are skipped |
 | broken internal links | `dockg:brokenLink "target.md"` (surfaced by `stats`) |
 | external links | `dcterms:references <url>` |
 | images | `schema:image` |
@@ -84,6 +84,22 @@ kg:
 ```
 
 Determinism contract: doc IRIs are `{baseIri}doc/{repo-relative-path}` (OS-independent, percent-encoded), section IRIs use GitHub-style heading slugs, concept IRIs converge on slugified labels, no blank nodes ever, and the Turtle is canonically sorted. `dockg build` twice → identical bytes.
+
+## Route mappings
+
+Doc sites (Fern, Starlight, Hugo, Docusaurus) link by *published route* (`/docs/actions/find`), not by source file. Route mappings teach dockg how routes map back to files so those links become real graph edges — and so routes under a mapped prefix with **no** matching file are reported as broken (they name pages that should exist):
+
+```yaml
+routes:
+  - basePath: /docs               # site prefix this mapping covers
+    root: docs/fern/pages/docs    # repo dir routes resolve into
+    extensions: [.mdx, .md]       # tried when the route has no extension
+    indexFiles: [index, README]   # tried for directory routes (/docs/actions/)
+```
+
+Matching is tiered and deterministic: exact path, then case-insensitive, then slug-normalized (so Fern's `/stop-record` finds `stopRecord.mdx`). Ambiguous fallback matches stay unresolved rather than guessing. Root-absolute links outside every mapped `basePath` are skipped, not broken.
+
+On the doc-detective docs corpus (197 files), adding six route mappings took the reference graph from 165 to 720 edges and cut false orphans from 137 to 13.
 
 ## AI fill
 

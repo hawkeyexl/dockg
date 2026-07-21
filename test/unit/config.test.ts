@@ -60,6 +60,28 @@ describe("parseConfig", () => {
     ).toThrow(DockgError);
   });
 
+  it("parses route mappings with defaults and normalization", () => {
+    const c = parseConfig(
+      "version: 1\nroutes:\n  - basePath: /docs/\n    root: docs/pages/\n",
+      "/tmp/dockg.config.yaml",
+    );
+    expect(c.routes).toEqual([
+      {
+        basePath: "/docs",
+        root: "docs/pages",
+        extensions: [".md", ".mdx"],
+        indexFiles: ["index", "README"],
+      },
+    ]);
+  });
+
+  it("defaults routes to an empty list and requires root per mapping", () => {
+    expect(parseConfig("version: 1\n", "/tmp/c.yaml").routes).toEqual([]);
+    expect(() =>
+      parseConfig("version: 1\nroutes:\n  - basePath: /docs\n", "/tmp/c.yaml"),
+    ).toThrow(DockgError);
+  });
+
   it("rejects an unknown derive source", () => {
     expect(() =>
       parseConfig(

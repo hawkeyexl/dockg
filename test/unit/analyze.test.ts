@@ -122,9 +122,120 @@ describe("analyzeDoc — links", () => {
     ]);
   });
 
+  it("resolves relative extensionless links by trying extensions and index files", () => {
+    const paths = new Set([
+      "docs/input-formats/overview.mdx",
+      "docs/input-formats/custom.mdx",
+      "docs/actions/index.md",
+      "docs/actions/find.mdx",
+    ]);
+    const doc = analyzeDoc(
+      "[a](custom) [b](../actions/) [c](../actions/find#usage)\n",
+      "docs/input-formats/overview.mdx",
+      paths,
+    );
+    expect(doc.links).toEqual([
+      { raw: "custom", kind: "internal", resolvedPath: "docs/input-formats/custom.mdx" },
+      { raw: "../actions/", kind: "internal", resolvedPath: "docs/actions/index.md" },
+      {
+        raw: "../actions/find#usage",
+        kind: "internal",
+        resolvedPath: "docs/actions/find.mdx",
+        anchor: "usage",
+      },
+    ]);
+  });
+
   it("marks links escaping the root as broken", () => {
     const doc = analyzeDoc("[out](../../outside.md)\n", "docs/intro.md", ALL);
     expect(doc.links).toEqual([{ raw: "../../outside.md", kind: "broken" }]);
+  });
+});
+
+describe("analyzeDoc — route mapping", () => {
+  const paths = new Set([
+    "docs/pages/actions/find.mdx",
+    "docs/pages/actions/index.mdx",
+    "docs/pages/intro.md",
+    "docs/linker.md",
+  ]);
+  const routes = [
+    {
+      basePath: "/docs",
+      root: "docs/pages",
+      extensions: [".mdx", ".md"],
+      indexFiles: ["index"],
+    },
+  ];
+
+  it("resolves a route to its source file, trying extensions", () => {
+    const doc = analyzeDoc(
+      "[a](/docs/actions/find) [b](/docs/intro)\n",
+      "docs/linker.md",
+      paths,
+      { routes },
+    );
+    expect(doc.links).toEqual([
+      { raw: "/docs/actions/find", kind: "internal", resolvedPath: "docs/pages/actions/find.mdx" },
+      { raw: "/docs/intro", kind: "internal", resolvedPath: "docs/pages/intro.md" },
+    ]);
+  });
+
+  it("resolves directory routes (trailing slash) via index files, and keeps anchors", () => {
+    const doc = analyzeDoc(
+      "[dir](/docs/actions/) [anchored](/docs/actions/find#usage)\n",
+      "docs/linker.md",
+      paths,
+      { routes },
+    );
+    expect(doc.links[0]).toEqual({
+      raw: "/docs/actions/",
+      kind: "internal",
+      resolvedPath: "docs/pages/actions/index.mdx",
+    });
+    expect(doc.links[1]).toMatchObject({
+      resolvedPath: "docs/pages/actions/find.mdx",
+      anchor: "usage",
+    });
+  });
+
+  it("marks unresolvable routes under a mapped basePath as broken", () => {
+    const doc = analyzeDoc("[gone](/docs/actions/missing)\n", "docs/linker.md", paths, {
+      routes,
+    });
+    expect(doc.links).toEqual([{ raw: "/docs/actions/missing", kind: "broken" }]);
+  });
+
+  it("still skips root-absolute links outside every mapped basePath", () => {
+    const doc = analyzeDoc("[other](/blog/post)\n", "docs/linker.md", paths, { routes });
+    expect(doc.links).toEqual([]);
+  });
+
+  it("matches case-insensitively and slug-normalized (Fern-style kebab slugs)", () => {
+    const camelPaths = new Set([
+      "docs/pages/actions/closeSurface.mdx",
+      "docs/pages/actions/stopRecord.mdx",
+      "docs/linker.md",
+    ]);
+    const doc = analyzeDoc(
+      "[a](/docs/actions/closesurface) [b](/docs/actions/stop-record)\n",
+      "docs/linker.md",
+      camelPaths,
+      { routes },
+    );
+    expect(doc.links).toEqual([
+      { raw: "/docs/actions/closesurface", kind: "internal", resolvedPath: "docs/pages/actions/closeSurface.mdx" },
+      { raw: "/docs/actions/stop-record", kind: "internal", resolvedPath: "docs/pages/actions/stopRecord.mdx" },
+    ]);
+  });
+
+  it("resolves the bare basePath itself to the root index", () => {
+    const doc = analyzeDoc("[home](/docs)\n", "docs/linker.md", paths, {
+      routes: [{ ...routes[0]!, root: "docs/pages/actions" }],
+    });
+    expect(doc.links).toEqual([
+      { raw: "/docs", kind: "internal", resolvedPath: "docs/pages/actions/index.mdx" },
+    ]);
   });
 });
 

@@ -120,7 +120,7 @@ export async function runFill(opts: FillOptions = {}): Promise<FillReport> {
     let cached = proposal !== undefined;
 
     if (!proposal) {
-      const doc = analyzeDoc(content, path, allPaths);
+      const doc = analyzeDoc(content, path, allPaths, { routes: config.routes });
       try {
         const response = await provider.completeJSON({
           system: SYSTEM_PROMPT,

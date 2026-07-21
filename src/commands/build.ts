@@ -42,7 +42,9 @@ export function runBuild(opts: BuildOptions = {}): BuildResult {
 
   const allPaths = new Set(files);
   const docs = files.map((path) =>
-    analyzeDoc(readFileSync(resolve(cwd, path), "utf8"), path, allPaths),
+    analyzeDoc(readFileSync(resolve(cwd, path), "utf8"), path, allPaths, {
+      routes: config.routes,
+    }),
   );
 
   const quads = deriveGraph(docs, {

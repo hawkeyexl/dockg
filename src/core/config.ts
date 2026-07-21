@@ -34,6 +34,18 @@ export interface Pricing {
   outputPerMTok: number;
 }
 
+/** Maps published-site routes back to source files. */
+export interface RouteMapping {
+  /** Site prefix, normalized: leading `/`, no trailing `/`; `""` = site root. */
+  basePath: string;
+  /** Repo-relative directory routes resolve into (no trailing slash). */
+  root: string;
+  /** Extensions to try when the route names a page without one. */
+  extensions: string[];
+  /** Basenames to try for directory routes (`/docs/actions/`). */
+  indexFiles: string[];
+}
+
 export interface DockgConfig {
   version: 1;
   /** Normalized base IRI (trailing slash for http(s); `urn:dockg:` default). */
@@ -42,6 +54,7 @@ export interface DockgConfig {
   exclude: string[];
   /** Output path of the built Turtle file, relative to configDir. */
   out: string;
+  routes: RouteMapping[];
   build: { derive: DeriveSource[] };
   validate: { schemas: string[] };
   fill: {
@@ -73,6 +86,14 @@ export const ALL_DERIVE_SOURCES: DeriveSource[] = [
   "images",
   "code",
 ];
+
+/** `/docs/` -> `/docs`; `/` or `` -> `` (site root). */
+function normalizeBasePath(basePath: string): string {
+  let out = basePath.trim();
+  if (!out.startsWith("/")) out = `/${out}`;
+  out = out.replace(/\/+$/, "");
+  return out;
+}
 
 const ajv = new Ajv2020({ allErrors: true, allowUnionTypes: true });
 const validateConfig = ajv.compile(configSchema);
@@ -107,6 +128,12 @@ export function parseConfig(text: string, configPath: string): DockgConfig {
     inputs: r.inputs ?? ["**/*.md"],
     exclude: r.exclude ?? ["**/node_modules/**"],
     out: r.out ?? "kg/graph.ttl",
+    routes: ((r.routes ?? []) as Array<Record<string, any>>).map((m) => ({
+      basePath: normalizeBasePath(m.basePath ?? "/"),
+      root: String(m.root).replace(/\\/g, "/").replace(/^\.\//, "").replace(/\/+$/, ""),
+      extensions: m.extensions ?? [".md", ".mdx"],
+      indexFiles: m.indexFiles ?? ["index", "README"],
+    })),
     build: {
       derive: r.build?.derive ?? [...ALL_DERIVE_SOURCES],
     },

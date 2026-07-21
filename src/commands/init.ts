@@ -18,6 +18,14 @@ exclude:
 # Output of \`dockg build\`.
 out: kg/graph.ttl
 
+# Map published-site routes back to source files so route-style links
+# (/docs/actions/find) become graph edges. Uncomment and adjust:
+# routes:
+#   - basePath: /docs
+#     root: docs
+#     extensions: [.md, .mdx]
+#     indexFiles: [index, README]
+
 # What to derive triples from. Remove entries to opt out.
 build:
   derive: [frontmatter, sections, links, tags, images, code]

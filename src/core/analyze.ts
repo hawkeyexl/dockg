@@ -13,7 +13,13 @@ import GithubSlugger from "github-slugger";
 import { extractFrontmatter } from "docmeta";
 import type { Root, Content, Definition } from "mdast";
 import type { DocImage, DocLink, DocModel, Section } from "../types.js";
+import type { RouteMapping } from "./config.js";
 import { normalizeDocPath } from "./iri.js";
+
+export interface AnalyzeOptions {
+  /** Site-route mappings for resolving root-absolute links. */
+  routes?: RouteMapping[];
+}
 
 const processor = unified()
   .use(remarkParse)
@@ -45,10 +51,101 @@ function resolveRelative(docPath: string, target: string): string | null {
   return segments.join("/");
 }
 
+const HAS_EXTENSION = /\.[a-z0-9]+$/i;
+
+/** Slug normalization for route matching: lowercase, dashes/underscores stripped. */
+function slugNorm(path: string): string {
+  return path.toLowerCase().replace(/[-_]/g, "");
+}
+
+/**
+ * Tiered lookup over the corpus: exact path, then case-insensitive, then
+ * slug-normalized (published slugs are often kebab-cased versions of
+ * camelCase filenames, e.g. Fern's /stop-record for stopRecord.mdx).
+ * Ambiguous fallback matches (two files normalizing identically) stay
+ * unresolved rather than guessing.
+ */
+class PathIndex {
+  private readonly lower = new Map<string, string | null>();
+  private readonly slugged = new Map<string, string | null>();
+
+  constructor(private readonly exact: ReadonlySet<string>) {
+    for (const path of exact) {
+      const lower = path.toLowerCase();
+      this.lower.set(lower, this.lower.has(lower) ? null : path);
+      const slug = slugNorm(path);
+      this.slugged.set(slug, this.slugged.has(slug) ? null : path);
+    }
+  }
+
+  resolve(candidate: string): string | undefined {
+    if (this.exact.has(candidate)) return candidate;
+    return (
+      this.lower.get(candidate.toLowerCase()) ??
+      this.slugged.get(slugNorm(candidate)) ??
+      undefined
+    );
+  }
+}
+
+/**
+ * Resolve a root-absolute route (`/docs/actions/find`) to a source file via
+ * the configured mappings. Returns the repo path, "broken" when a mapping's
+ * basePath matched but no candidate file exists, or null when no mapping
+ * covers the route.
+ */
+function resolveRoute(
+  pathPart: string,
+  routes: RouteMapping[],
+  index: PathIndex,
+): string | "broken" | null {
+  const clean = pathPart.replace(/\/+$/, "");
+  let anyMatched = false;
+  for (const mapping of routes) {
+    if (clean !== mapping.basePath && !clean.startsWith(`${mapping.basePath}/`)) {
+      continue;
+    }
+    anyMatched = true;
+    const rest = clean.slice(mapping.basePath.length).replace(/^\/+/, "");
+    const prefix = mapping.root ? `${mapping.root}/` : "";
+
+    const candidates: string[] = [];
+    if (rest !== "" && HAS_EXTENSION.test(rest)) {
+      candidates.push(`${prefix}${rest}`);
+    } else {
+      if (rest !== "") {
+        for (const ext of mapping.extensions) candidates.push(`${prefix}${rest}${ext}`);
+      }
+      const dir = rest === "" ? prefix : `${prefix}${rest}/`;
+      for (const indexFile of mapping.indexFiles) {
+        for (const ext of mapping.extensions) candidates.push(`${dir}${indexFile}${ext}`);
+      }
+    }
+    for (const candidate of candidates) {
+      const resolved = index.resolve(candidate);
+      if (resolved) return resolved;
+    }
+  }
+  return anyMatched ? "broken" : null;
+}
+
+/** One PathIndex per corpus set — analyzeDoc is called once per doc over the same set. */
+const indexCache = new WeakMap<ReadonlySet<string>, PathIndex>();
+
+function pathIndexFor(allPaths: ReadonlySet<string>): PathIndex {
+  let index = indexCache.get(allPaths);
+  if (!index) {
+    index = new PathIndex(allPaths);
+    indexCache.set(allPaths, index);
+  }
+  return index;
+}
+
 function classifyLink(
   docPath: string,
   rawTarget: string,
   allPaths: ReadonlySet<string>,
+  routes: RouteMapping[],
 ): DocLink | null {
   const raw = rawTarget;
   if (hasScheme(raw)) {
@@ -63,17 +160,51 @@ function classifyLink(
   const pathPart = hashAt === -1 ? raw : raw.slice(0, hashAt);
   const anchor = hashAt === -1 ? undefined : raw.slice(hashAt + 1);
   if (pathPart === "") return null; // same-document anchor
-  // Site-root-absolute URLs (/docs/x/) are published-site routes, not repo
-  // paths — unresolvable without site mapping, so neither internal nor broken.
-  if (pathPart.startsWith("/")) return null;
-  const resolved = resolveRelative(docPath, decodeURIComponent(pathPart));
-  if (resolved !== null && allPaths.has(resolved)) {
+  // Site-root-absolute URLs (/docs/x/) are published-site routes. With route
+  // mappings configured they resolve to source files (or count as broken when
+  // a mapped basePath has no matching file); unmapped routes are skipped.
+  if (pathPart.startsWith("/")) {
+    const resolved = resolveRoute(pathPart, routes, pathIndexFor(allPaths));
+    if (resolved === null) return null;
+    if (resolved === "broken") return { raw, kind: "broken" };
     const link: DocLink = { raw, kind: "internal", resolvedPath: resolved };
     if (anchor) link.anchor = anchor;
     return link;
   }
+  const resolved = resolveRelative(docPath, decodeURIComponent(pathPart));
+  if (resolved !== null) {
+    const index = pathIndexFor(allPaths);
+    const hadTrailingSlash = pathPart.endsWith("/");
+    const candidates: string[] = [];
+    if (allPaths.has(resolved)) {
+      candidates.push(resolved);
+    } else if (!HAS_EXTENSION.test(resolved)) {
+      // Extensionless relative links are route-style: try extensions, then
+      // index files for directory targets.
+      if (!hadTrailingSlash) {
+        for (const ext of DEFAULT_LINK_EXTENSIONS) candidates.push(`${resolved}${ext}`);
+      }
+      const dir = resolved === "" ? "" : `${resolved}/`;
+      for (const indexFile of DEFAULT_INDEX_FILES) {
+        for (const ext of DEFAULT_LINK_EXTENSIONS) {
+          candidates.push(`${dir}${indexFile}${ext}`);
+        }
+      }
+    }
+    for (const candidate of candidates) {
+      const hit = index.resolve(candidate);
+      if (hit) {
+        const link: DocLink = { raw, kind: "internal", resolvedPath: hit };
+        if (anchor) link.anchor = anchor;
+        return link;
+      }
+    }
+  }
   return { raw, kind: "broken" };
 }
+
+const DEFAULT_LINK_EXTENSIONS = [".md", ".mdx"];
+const DEFAULT_INDEX_FILES = ["index", "README"];
 
 function classifyImage(
   docPath: string,
@@ -91,7 +222,9 @@ export function analyzeDoc(
   content: string,
   relPath: string,
   allPaths: ReadonlySet<string>,
+  options: AnalyzeOptions = {},
 ): DocModel {
+  const routes = options.routes ?? [];
   const path = normalizeDocPath(relPath);
   const meta = extractFrontmatter(content, "markdown");
   const tree = processor.parse(content) as Root;
@@ -136,14 +269,14 @@ export function analyzeDoc(
         break;
       }
       case "link": {
-        const link = classifyLink(path, (node as { url: string }).url, allPaths);
+        const link = classifyLink(path, (node as { url: string }).url, allPaths, routes);
         if (link) links.push(link);
         break;
       }
       case "linkReference": {
         const def = definitions.get((node as { identifier: string }).identifier);
         if (def) {
-          const link = classifyLink(path, def.url, allPaths);
+          const link = classifyLink(path, def.url, allPaths, routes);
           if (link) links.push(link);
         }
         break;
