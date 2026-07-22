@@ -98,7 +98,7 @@ npm run format:check && npm run lint && npm run typecheck && npm run build && np
 
 **Build before test** — integration tests execute `dist/cli.js`, not `src/`.
 
-Enforcement is layered (see [adrs/01004](adrs/01004-quality-gate-enforcement.md)): `pre-commit`
+Enforcement is layered (see [adrs/01007](adrs/01007-quality-gate-enforcement.md)): `pre-commit`
 runs lint-staged (Prettier + ESLint over the **staged** blobs) then `typecheck`; `pre-push` runs
 the full loop; CI re-runs everything plus commitlint across the PR's commit range. The CI copy is
 authoritative — hooks are advisory by construction.
