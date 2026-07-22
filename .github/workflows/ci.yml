@@ -11,6 +11,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          # commitlint needs the PR's commits, not just the tip.
+          fetch-depth: 0
       - uses: actions/setup-node@v6
         with:
           node-version: 24
@@ -21,6 +24,24 @@ jobs:
       # (@emnapi/core, @emnapi/runtime), which rolldown's wasm binding pulls
       # in — a strict lock check can't be satisfied on both platforms.
       - run: npm install
+
+      # The husky commit-msg hook is the first line of defense, but it is
+      # bypassable (--no-verify, the GitHub web editor, a clone that never ran
+      # `npm install`). semantic-release derives every version bump from these
+      # messages, so a malformed one silently mis-versions a release — this is
+      # the backstop that makes the convention binding. Note this validates the
+      # PR's individual commits; if a PR is ever squash-merged, the squashed
+      # subject is the PR title, which this does not see.
+      - name: Commit messages (conventional commits)
+        if: github.event_name == 'pull_request'
+        run: >
+          npx commitlint
+          --from ${{ github.event.pull_request.base.sha }}
+          --to ${{ github.event.pull_request.head.sha }}
+          --verbose
+
+      - run: npm run format:check
+      - run: npm run lint
       - run: npm run typecheck
       - run: npm run build
       - run: npm test
