@@ -260,13 +260,18 @@ export async function runFill(opts: FillOptions = {}): Promise<FillReport> {
 
     // The 0.1 schema requires prefLabel alongside any label/relation field
     // (dependentRequired) — never write output our own validate rejects.
-    const willHavePrefLabel =
-      present.has("prefLabel") ||
-      (typeof narrowed["prefLabel"] === "string" &&
-        narrowed["prefLabel"].length > 0);
-    if (!willHavePrefLabel) {
-      for (const field of RELATION_FIELDS) delete narrowed[field];
-    }
+    // Rechecked after the guardrail: rejecting prefLabel takes the relation
+    // fields down with it.
+    const gatePrefLabel = (): void => {
+      const hasPrefLabel =
+        present.has("prefLabel") ||
+        (typeof narrowed["prefLabel"] === "string" &&
+          narrowed["prefLabel"].length > 0);
+      if (!hasPrefLabel) {
+        for (const field of RELATION_FIELDS) delete narrowed[field];
+      }
+    };
+    gatePrefLabel();
 
     // Graph guardrail: drop any field whose triples would violate the
     // shapes contract (cycles, related⨯broader conflicts, second spellings
@@ -279,15 +284,7 @@ export async function runFill(opts: FillOptions = {}): Promise<FillReport> {
       if (vetted.rejected.length > 0) {
         rejected = vetted.rejected.map((r) => r.field);
         for (const field of rejected) delete narrowed[field];
-        // Re-apply the prefLabel gate: rejecting prefLabel takes the
-        // relation fields down with it.
-        const stillHasPrefLabel =
-          present.has("prefLabel") ||
-          (typeof narrowed["prefLabel"] === "string" &&
-            narrowed["prefLabel"].length > 0);
-        if (!stillHasPrefLabel) {
-          for (const field of RELATION_FIELDS) delete narrowed[field];
-        }
+        gatePrefLabel();
       }
     }
 

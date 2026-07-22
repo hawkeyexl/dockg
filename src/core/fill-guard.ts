@@ -15,6 +15,7 @@ import type { DeriveSource, DockgConfig } from "./config.js";
 import { deriveGraph, type Quad } from "./derive.js";
 import { applyKgFields } from "./frontmatter-edit.js";
 import { validateGraph, type CheckFinding } from "./shacl.js";
+import { byCodeUnit } from "./sort.js";
 import { NS } from "./vocab.js";
 
 const { namedNode, literal, quad } = DataFactory;
@@ -201,7 +202,7 @@ export class FillGuard {
       }
     }
 
-    rejected.sort((a, b) => a.field.localeCompare(b.field));
+    rejected.sort((a, b) => byCodeUnit(a.field, b.field));
     return { values: current, rejected };
   }
 
