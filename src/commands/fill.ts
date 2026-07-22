@@ -133,13 +133,28 @@ export async function runFill(opts: FillOptions = {}): Promise<FillReport> {
 
   // Graph guardrail: simulate each proposal against the SHACL shapes before
   // writing it. Off via fill.validateGraph: false or --no-validate-graph.
+  // The guard's base state is the FULL configured corpus, not the positional
+  // glob subset — a proposal for one doc can cycle with hierarchy that lives
+  // in a doc outside the subset being filled.
   const shapesPaths =
     config.check.shapes.length > 0
       ? config.check.shapes.map((p) => resolve(cwd, p))
       : [bundledShapesPath(import.meta.url)];
+  const guardFiles = [
+    ...new Set([
+      ...discoverFiles(config.inputs, config.exclude, cwd),
+      ...files,
+    ]),
+  ];
   const guard =
     !opts.noValidateGraph && config.fill.validateGraph
-      ? FillGuard.create(files, cwd, config, shapesPaths, opts.force ?? false)
+      ? FillGuard.create(
+          guardFiles,
+          cwd,
+          config,
+          shapesPaths,
+          opts.force ?? false,
+        )
       : undefined;
 
   for (const path of files) {

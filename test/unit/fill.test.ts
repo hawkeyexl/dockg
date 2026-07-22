@@ -382,6 +382,30 @@ describe("runFill graph guardrail (fill.validateGraph)", () => {
     });
   });
 
+  it("guards against the whole corpus even when filling a subset glob", async () => {
+    const dir = setup(
+      {
+        "a.md":
+          "---\ntitle: A\nkg:\n  prefLabel: Alpha\n  broader: [Beta]\n---\n\n# A\n",
+        "b.md": "---\ntitle: B\n---\n\n# B\n",
+      },
+      HIERARCHY_CONFIG,
+    );
+    const provider = new MockProvider([
+      { json: { prefLabel: "Beta", broader: ["Alpha"] } },
+    ]);
+    // Only b.md is in scope — the cycle partner a.md is not — but the
+    // guard must still see a.md's hierarchy.
+    const report = await runFill({
+      cwd: dir,
+      globs: ["b.md"],
+      providerInstance: provider,
+    });
+    const result = report.results.find((r) => r.path === "b.md");
+    expect(result!.rejected).toContain("broader");
+    expect(readFileSync(join(dir, "b.md"), "utf8")).not.toContain("broader");
+  });
+
   it("fill.validateGraph: false writes the cycle anyway", async () => {
     const dir = setup(
       {
