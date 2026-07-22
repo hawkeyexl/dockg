@@ -73,21 +73,52 @@ plus companion posts). The load-bearing findings:
 
 ---
 
-## Phase 0 — Positioning and hygiene
+## Phase 0 — Positioning and hygiene — **done**
 
 **Goal:** ratify the product frame everything else builds on.
 
-Decisions to make (ADRs):
-- **Graph-as-index contract.** Proposed frame: the graph is an index and
-  governance layer; prose never enters it; consumers join graph → files via
-  `dockg:path` + section slug (hybrid consumption). Ratify, amend, or reject.
-- Whether the opinionated-defaults mandate (settled above) gets its own
-  umbrella ADR now or is recorded per-phase as defaults flip.
+Decided:
+- **Graph-as-index contract** — ratified as proposed
+  ([ADR 01008](adrs/01008-graph-as-index-not-corpus.md)): the graph is an index
+  and governance layer, prose never enters it, consumers join graph → files via
+  `dockg:path` + section slug. Binds the roadmap in two ways — retrieval
+  features need a content resolver, and metadata coverage becomes a
+  first-class measurable concern.
+- **Opinionated defaults get their own umbrella ADR**
+  ([ADR 01009](adrs/01009-opinionated-defaults.md)) rather than per-phase
+  argument: hermetic features default on; network and spend stay explicit
+  commands; strictness stays the default *inside* those commands; default-on
+  features degrade rather than fail; reporting-on-by-default does not imply
+  gates-on-by-default. Includes the schedule of which knob flips in which
+  phase.
 
-Deliverables: the ADR(s); README "what the graph is (and isn't)" section; a
-"related standards" note (iiRDS, DIN SPEC 91526, QUDT) including the
-no-vendoring licensing rule. *(Already done and available to restore/redo:
-the 01004→01007 ADR renumbering chore is committed.)*
+Delivered: both ADRs; README "What the graph is (and isn't)" and "Related
+standards" sections (incl. the iiRDS no-vendoring rule); the 01004→01007 ADR
+renumbering chore.
+
+## Phase 0b — Default flips for the existing knobs
+
+**Goal:** apply ADR 01009 to the two opt-ins that predate it. First *behavior*
+change of the roadmap; deliberately separated from Phase 0's docs-only scope.
+
+Decisions to make (ADR):
+- **Degradation semantics for `provenance.git`.** Today, enabling it outside a
+  git repo (or without git on PATH, or with zero commits) is a hard
+  `DockgError` → exit 2; defaulting it on would make dockg fail on every
+  non-git corpus. Leading candidate from ADR 01009: an explicit `true` in
+  config keeps erroring (a stated requirement that cannot be honored is an
+  operational error), while the *inherited* default warns and continues
+  without git-derived triples. Alternative: one behavior for both, simpler to
+  explain. Decide, including where the warning goes and how it is tested.
+- Whether `provenance.qualified: true` needs any degradation path at all
+  (it derives from data already in the graph, so probably not — confirm).
+
+Deliverables: config defaults flipped; degradation path implemented and tested
+against a non-git corpus; golden regenerated (large diff — inspect line by
+line); CLAUDE.md's determinism invariant amended to describe the
+source-of-truth rule rather than the opt-in flag; README provenance section
+updated, including a short statement of the opinionated-defaults philosophy
+now that it is true of the shipped defaults.
 
 ## Phase 1 — Metadata coverage in `stats`
 
