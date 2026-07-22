@@ -35,11 +35,14 @@ build:
 #   dates as fallbacks, author agents, rename -> prov:wasRevisionOf) and
 #   stamp the build activity with the HEAD committer date. Deterministic
 #   per commit; wall-clock time never enters the graph.
+#   "auto" (default) derives it wherever git can run and warns where it
+#   cannot; true requires git, so an unavailable one fails the build; false
+#   skips git entirely.
 # qualified: emit prov:qualifiedAttribution/qualifiedAssociation nodes
 #   with roles alongside the direct properties.
 provenance:
-  git: false
-  qualified: false
+  git: auto
+  qualified: true
 
 # Schemas \`dockg validate\` checks via docmeta. Default: the frontmatter
 # schema bundled with dockg (schemas/frontmatter-0.3.json). Override with

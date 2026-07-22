@@ -50,10 +50,14 @@ gotcha, a decision, a convention — record it **in the repo, in the same change
 
 - **Determinism is the product contract.** `dockg build` twice over unchanged inputs must be
   byte-identical: canonically sorted Turtle from the custom emitter (`src/core/emit.ts`), no wall
-  clock anywhere (git committer dates only, behind an opt-in flag), no blank nodes ever (every
-  node gets a deterministic IRI), IRIs sanitized so output always parses. The corpus golden
-  (`test/fixtures/golden/graph.ttl`) is the regression gate — update it only deliberately, after
-  inspecting the diff line by line. Golden comparisons normalize the `dockg:version` literal.
+  clock anywhere (dates come from frontmatter first, then git committer times — never
+  `Date.now()`), no blank nodes ever (every node gets a deterministic IRI), IRIs sanitized so
+  output always parses. The corpus golden (`test/fixtures/golden/graph.ttl`) is the regression
+  gate — update it only deliberately, after inspecting the diff line by line. Golden comparisons
+  normalize the `dockg:version` literal. The corpus fixture pins `provenance.git: false`
+  ([ADR 01010](adrs/01010-provenance-defaults-and-degradation.md)) so the golden captures
+  derivation, not this repo's HEAD committer date; git-derived output is covered by the
+  temp-repo tests instead.
 - **Naming:** the *frontmatter key* is `kg:`; the *RDF namespace prefix* is `dockg:`
   (`https://dockg.dev/ns#`). Never conflate them. The custom namespace stays minimal — prefer
   dcterms/skos/prov/schema.org/foaf terms wherever one exists.

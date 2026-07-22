@@ -8,8 +8,13 @@
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 
 <https://example.com/kg/activity/build> a prov:Activity ;
+  prov:qualifiedAssociation <https://example.com/kg/activity/build.assoc.dockg> ;
   prov:used <https://example.com/kg/doc/docs/configuration.md>, <https://example.com/kg/doc/docs/getting-started.md>, <https://example.com/kg/doc/docs/no-frontmatter.md>, <https://example.com/kg/doc/docs/windows-notes.md> ;
   prov:wasAssociatedWith <https://example.com/kg/agent/software/dockg> .
+
+<https://example.com/kg/activity/build.assoc.dockg> a prov:Association ;
+  prov:agent <https://example.com/kg/agent/software/dockg> ;
+  prov:hadRole dockg:toolRole .
 
 <https://example.com/kg/agent/person/jane-doe> a prov:Person ;
   foaf:name "Jane Doe" .
@@ -76,6 +81,7 @@
   dcterms:subject <https://example.com/kg/concept/installation>, <https://example.com/kg/concept/setup> ;
   dcterms:title "Getting Started" ;
   prov:generatedAtTime "2026-05-01"^^xsd:date ;
+  prov:qualifiedAttribution <https://example.com/kg/doc/docs/getting-started.md#prov.attribution.jane-doe> ;
   prov:wasAttributedTo <https://example.com/kg/agent/person/jane-doe> ;
   dockg:codeLanguage "bash", "python" ;
   dockg:path "docs/getting-started.md" ;
@@ -96,6 +102,10 @@
   dcterms:title "Install" ;
   dockg:level 2 ;
   dockg:order 2 .
+
+<https://example.com/kg/doc/docs/getting-started.md#prov.attribution.jane-doe> a prov:Attribution ;
+  prov:agent <https://example.com/kg/agent/person/jane-doe> ;
+  prov:hadRole dockg:authorRole .
 
 <https://example.com/kg/doc/docs/no-frontmatter.md> a prov:Entity, dockg:Document ;
   dcterms:hasPart <https://example.com/kg/doc/docs/no-frontmatter.md#loose-notes> ;

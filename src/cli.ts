@@ -52,6 +52,11 @@ program
         config: opts.config,
         out: opts.out,
       });
+      // Warnings go to stderr so stdout stays the machine-readable summary;
+      // a degraded build is still a successful one, so the exit code is 0.
+      for (const warning of result.warnings) {
+        console.error(pc.yellow(`dockg: ${warning}`));
+      }
       console.log(
         `Wrote ${result.outPath} (${result.docs} docs, ${result.quads} triples)`,
       );

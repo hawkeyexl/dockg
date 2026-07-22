@@ -96,29 +96,32 @@ Delivered: both ADRs; README "What the graph is (and isn't)" and "Related
 standards" sections (incl. the iiRDS no-vendoring rule); the 01004→01007 ADR
 renumbering chore.
 
-## Phase 0b — Default flips for the existing knobs
+## Phase 0b — Default flips for the existing knobs — **done**
 
 **Goal:** apply ADR 01009 to the two opt-ins that predate it. First *behavior*
 change of the roadmap; deliberately separated from Phase 0's docs-only scope.
 
-Decisions to make (ADR):
-- **Degradation semantics for `provenance.git`.** Today, enabling it outside a
-  git repo (or without git on PATH, or with zero commits) is a hard
-  `DockgError` → exit 2; defaulting it on would make dockg fail on every
-  non-git corpus. Leading candidate from ADR 01009: an explicit `true` in
-  config keeps erroring (a stated requirement that cannot be honored is an
-  operational error), while the *inherited* default warns and continues
-  without git-derived triples. Alternative: one behavior for both, simpler to
-  explain. Decide, including where the warning goes and how it is tested.
-- Whether `provenance.qualified: true` needs any degradation path at all
-  (it derives from data already in the graph, so probably not — confirm).
+Decided ([ADR 01010](adrs/01010-provenance-defaults-and-degradation.md)):
+- **`provenance.git` became tri-state** — `"auto"` (default) derives git
+  provenance where git can run and degrades with a warning where it cannot,
+  `true` requires it (unavailable git → exit 2), `false` skips the subprocess.
+  ADR 01009's leading candidate (distinguish explicit `true` from an inherited
+  default) was rejected: identical config values behaving differently by origin
+  is invisible in the file and awkward to document.
+- **`provenance.qualified` flipped to `true`** outright — no external
+  dependency, no degradation path, stable output.
+- **Builds gained a warnings channel** — `BuildResult.warnings`, rendered to
+  stderr by the CLI, never affecting the exit code. dockg had no diagnostic
+  path between "silent" and "fatal" before this; later phases can use it.
+- **The regression corpus pins `provenance.git: false`.** Discovered during
+  implementation: the build activity's `prov:endedAtTime` is HEAD's committer
+  date, so a git-on golden would fail on *every commit* to this repo. The
+  golden's job is derivation regression, not repo-state capture.
 
-Deliverables: config defaults flipped; degradation path implemented and tested
-against a non-git corpus; golden regenerated (large diff — inspect line by
-line); CLAUDE.md's determinism invariant amended to describe the
-source-of-truth rule rather than the opt-in flag; README provenance section
-updated, including a short statement of the opinionated-defaults philosophy
-now that it is true of the shipped defaults.
+Delivered: config schema + defaults, degradation path, warnings channel, golden
+regenerated (8 qualified-provenance triples, diff inspected), CLAUDE.md
+determinism invariant amended, README provenance section + config sample +
+opinionated-defaults statement, `dockg init` template.
 
 ## Phase 1 — Metadata coverage in `stats`
 
