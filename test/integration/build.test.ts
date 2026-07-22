@@ -48,7 +48,7 @@ describe("dockg build (integration)", () => {
       readFileSync(golden, "utf8"),
     );
     // must equal the triple count `build` reports for the corpus
-    expect(quads.length).toBe(113);
+    expect(quads.length).toBe(117);
   });
 
   it("reports docs and triples on stdout", () => {

@@ -64,4 +64,6 @@ export interface DocModel {
   images: DocImage[];
   /** Distinct fenced code block languages, sorted. */
   codeLanguages: string[];
+  /** sha256 hex digest of the document's UTF-8 content. */
+  contentHash: string;
 }

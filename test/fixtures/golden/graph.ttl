@@ -47,6 +47,7 @@
   dcterms:subject <https://example.com/kg/concept/configuration>, <https://example.com/kg/concept/reference> ;
   dcterms:title "Configuration Reference" ;
   foaf:primaryTopic <https://example.com/kg/concept/configuration> ;
+  dockg:contentHash "c9b47fcf51ed53b46174c6d90e4df647b0deebb0313fbaf92e234657c3a039b5" ;
   dockg:path "docs/configuration.md" .
 
 <https://example.com/kg/doc/docs/configuration.md#advanced> a dockg:Section ;
@@ -78,6 +79,7 @@
   prov:generatedAtTime "2026-05-01"^^xsd:date ;
   prov:wasAttributedTo <https://example.com/kg/agent/person/jane-doe> ;
   dockg:codeLanguage "bash", "python" ;
+  dockg:contentHash "e5f9075de5a60dcfef34e732c9a85624261ee106e886f84183688c4b6733e85a" ;
   dockg:path "docs/getting-started.md" ;
   schema:image <https://example.com/kg/file/docs/img/arch.png> .
 
@@ -102,6 +104,7 @@
   dcterms:references <https://example.org/page> ;
   dcterms:title "Loose Notes" ;
   dockg:brokenLink "missing.md" ;
+  dockg:contentHash "a1bed4d62ffe65581cb2d3465d701ee91a99640389f7564cca967f77f50a4d54" ;
   dockg:path "docs/no-frontmatter.md" .
 
 <https://example.com/kg/doc/docs/no-frontmatter.md#loose-notes> a dockg:Section ;
@@ -113,6 +116,7 @@
   dcterms:hasPart <https://example.com/kg/doc/docs/windows-notes.md#windows-notes> ;
   dcterms:references <https://example.com/kg/doc/docs/configuration.md> ;
   dcterms:title "Windows Notes" ;
+  dockg:contentHash "fd055b64091ce95eaaa5db80b19880422694c677dc23dd8084336237c5647272" ;
   dockg:path "docs/windows-notes.md" .
 
 <https://example.com/kg/doc/docs/windows-notes.md#windows-notes> a dockg:Section ;

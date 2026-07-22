@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { analyzeDoc } from "../../src/core/analyze.js";
 
@@ -87,6 +88,24 @@ describe("analyzeDoc — headings", () => {
       parentSlug: null,
       order: 2,
     });
+  });
+});
+
+describe("analyzeDoc — content hash", () => {
+  it("computes the sha256 hex digest of the document's UTF-8 content", () => {
+    const content = "---\ntitle: Intro\n---\n\n# Hello\n";
+    const doc = analyzeDoc(content, "docs/intro.md", ALL);
+    expect(doc.contentHash).toBe(
+      createHash("sha256").update(content, "utf8").digest("hex"),
+    );
+  });
+
+  it("is byte-faithful: CRLF and LF variants of the same text differ", () => {
+    const lf = analyzeDoc("# Heading\n", "docs/intro.md", ALL);
+    const crlf = analyzeDoc("# Heading\r\n", "docs/intro.md", ALL);
+    expect(lf.contentHash).not.toBe(crlf.contentHash);
+    expect(lf.contentHash).toMatch(/^[0-9a-f]{64}$/);
+    expect(crlf.contentHash).toMatch(/^[0-9a-f]{64}$/);
   });
 });
 

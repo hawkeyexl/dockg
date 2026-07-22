@@ -29,11 +29,11 @@ Exit codes: `0` ok · `1` findings (validation failures, `check` violations, `st
 
 ## What gets derived
 
-Standard vocabularies wherever a term exists — Dublin Core (`dcterms:`), SKOS (`skos:`), schema.org (`schema:`), FOAF (`foaf:`) — plus a minimal custom namespace `dockg: <https://dockg.dev/ns#>` (2 classes, 5 properties).
+Standard vocabularies wherever a term exists — Dublin Core (`dcterms:`), SKOS (`skos:`), schema.org (`schema:`), FOAF (`foaf:`) — plus a minimal custom namespace `dockg: <https://dockg.dev/ns#>` (2 classes, 8 properties, 3 role individuals).
 
 | Source | Triples |
 |---|---|
-| every doc | `<doc> a dockg:Document ; dockg:path "docs/x.md"` |
+| every doc | `<doc> a dockg:Document ; dockg:path "docs/x.md" ; dockg:contentHash "<sha256 hex of the file content>"` — the hash lets consumers detect content drift and join external stores (search indexes, embeddings) to the exact source revision |
 | `title` (fallback: first H1) | `dcterms:title` |
 | `description` / `author(s)` / `date` / `updated` / `lang` | `dcterms:description` / `dcterms:creator` / `dcterms:created`^^xsd:date / `dcterms:modified` / `dcterms:language` |
 | `tags` / `keywords` | `<doc> dcterms:subject <concept>` ; concept nodes are `skos:Concept` with `skos:prefLabel` and `skos:inScheme` |
@@ -77,6 +77,7 @@ kg:
   dcterms:references <https://example.com/kg/doc/docs/configuration.md> ;
   dcterms:subject <https://example.com/kg/concept/setup> ;
   dcterms:title "Getting Started" ;
+  dockg:contentHash "e5f9075de5a60dcfef34e732c9a85624261ee106e886f84183688c4b6733e85a" ;
   dockg:path "docs/getting-started.md" .
 
 <https://example.com/kg/concept/setup> a skos:Concept ;
@@ -153,7 +154,7 @@ the package; the default for `dockg validate`). Earlier versions
 dockg build && dockg check
 ```
 
-The rules live in a published SHACL shapes contract, [`shapes/dockg-0.1.ttl`](shapes/dockg-0.1.ttl), bundled with the package (override with `check.shapes` or `--shapes`). Like the frontmatter schemas, published shapes files are immutable — the contract evolves by adding a new version file. Point any SHACL tool at it to validate your own merged graphs against the same rules.
+The rules live in a published SHACL shapes contract, [`shapes/dockg-0.2.ttl`](shapes/dockg-0.2.ttl), bundled with the package (override with `check.shapes` or `--shapes`). Like the frontmatter schemas, published shapes files are immutable — the contract evolves by adding a new version file. Point any SHACL tool at it to validate your own merged graphs against the same rules.
 
 What it catches:
 
@@ -218,7 +219,7 @@ dockg fill --force            # overwrite human-set kg fields too
 | `dockg init` | Scaffold a starter `dockg.config.yaml` |
 | `dockg build [globs]` | Derive the graph and write deterministic Turtle |
 | `dockg validate [globs]` | Check KG frontmatter via docmeta (bundled `schemas/frontmatter-0.4.json`) |
-| `dockg check` | Validate the built graph against the SHACL shapes (bundled `shapes/dockg-0.1.ttl`) |
+| `dockg check` | Validate the built graph against the SHACL shapes (bundled `shapes/dockg-0.2.ttl`) |
 | `dockg fill [globs]` | Propose SKOS `kg:` fields with an LLM and write them back |
 | `dockg query` | Triple-pattern match: `-s`/`-p`/`-o`, omit for wildcard |
 | `dockg stats` | Counts, orphan docs, broken links, most-connected docs; `--check` gates CI |
@@ -241,7 +242,7 @@ provenance:
   git: false         # opt-in: per-file git dates/authors, rename revisions, build endedAtTime
   qualified: false   # opt-in: qualified attribution/association nodes with roles
 # validate.schemas defaults to the bundled schemas/frontmatter-0.4.json
-# check.shapes defaults to the bundled shapes/dockg-0.1.ttl
+# check.shapes defaults to the bundled shapes/dockg-0.2.ttl
 fill:
   provider: anthropic
   temperature: 0

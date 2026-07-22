@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { analyzeDoc } from "../../src/core/analyze.js";
 import { deriveGraph } from "../../src/core/derive.js";
@@ -66,6 +67,12 @@ describe("deriveGraph — document basics", () => {
     const g = graph({ "docs/a.md": "# A\n" });
     expect(has(g, DOC, `${NS.rdf}type`, iri(`${NS.dockg}Document`))).toBe(true);
     expect(has(g, DOC, `${NS.dockg}path`, lit("docs/a.md"))).toBe(true);
+  });
+
+  it("records the document's content hash regardless of derive sources", () => {
+    const hash = createHash("sha256").update("# A\n", "utf8").digest("hex");
+    const g = graph({ "docs/a.md": "# A\n" }, []);
+    expect(has(g, DOC, `${NS.dockg}contentHash`, lit(hash))).toBe(true);
   });
 
   it("maps frontmatter title, falling back to first H1", () => {

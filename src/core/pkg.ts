@@ -29,5 +29,5 @@ export function bundledSchemaPath(moduleUrl: string): string {
 
 /** Absolute path of the bundled SHACL shapes `dockg check` defaults to. */
 export function bundledShapesPath(moduleUrl: string): string {
-  return join(packageRoot(moduleUrl), "shapes", "dockg-0.1.ttl");
+  return join(packageRoot(moduleUrl), "shapes", "dockg-0.2.ttl");
 }
