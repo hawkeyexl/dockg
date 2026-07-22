@@ -31,7 +31,8 @@ reintroduce a `file:`/`link:` spec, since npm publishes them verbatim and
 `prepublishOnly` (scripts/check-publishable.mjs) now refuses to.
 
 Don't reach for `--no-verify` when a husky hook fails — install the missing deps or fix the
-message instead.
+message instead. It buys nothing anyway: CI re-runs every hook check, including commitlint
+across the PR's commit range, so a bypassed hook becomes a failed PR.
 
 ## Persistent knowledge: repo instructions, not Claude memory (required)
 
@@ -65,8 +66,16 @@ gotcha, a decision, a convention — record it **in the repo, in the same change
 - **No network in tests.** LLM code paths are tested through `MockProvider`
   (`src/llm/providers/mock.ts`), exported publicly for downstream use. The exec seam is
   injectable for git/CLI subprocess tests.
+- **LF everywhere.** [.gitattributes](.gitattributes) declares `* text=auto eol=lf`, so the
+  object store and every working tree are LF on every platform regardless of a contributor's
+  global `core.autocrlf`. Exemptions use `-text` and **must stay below** the `*` rule — the last
+  matching line wins, so an override placed above it silently does nothing.
 - `test/fixtures/corpus/docs/windows-notes.md` is CRLF **on purpose**, pinned by
-  `.gitattributes`. Don't normalize it.
+  `.gitattributes`. Don't normalize it. (`-text` keeps its bytes verbatim, exempt from the LF
+  rule above.)
+- **No NUL bytes in source.** They make git classify a file as binary, which excludes it from
+  LF normalization and renders its diffs unreviewable. For ordering, compare field by field with
+  `byCodeUnit` ([src/core/sort.ts](src/core/sort.ts)) instead of joining fields with a separator.
 
 ## Branches and pull requests (required)
 
@@ -81,10 +90,19 @@ Always **red → green** TDD: write the failing test first, run it to confirm it
 expected reason, write the minimum code, confirm green, refactor. The verification loop is:
 
 ```bash
-npm run typecheck && npm run build && npm test
+npm run format:check && npm run lint && npm run typecheck && npm run build && npm test
 ```
 
 **Build before test** — integration tests execute `dist/cli.js`, not `src/`.
+
+Enforcement is layered (see [adrs/01004](adrs/01004-quality-gate-enforcement.md)): `pre-commit`
+runs lint-staged (Prettier + ESLint over the **staged** blobs) then `typecheck`; `pre-push` runs
+the full loop; CI re-runs everything plus commitlint across the PR's commit range. The CI copy is
+authoritative — hooks are advisory by construction.
+
+Formatting is Prettier's job and linting is ESLint's; `eslint-config-prettier` keeps them from
+arguing. Prettier **must never** touch `test/fixtures/` or `schemas/` — both are byte-sensitive,
+and `.prettierignore` encodes that. If you add a byte-exact fixture, add it there too.
 
 ## Architecture Decision Records (required)
 
@@ -155,6 +173,10 @@ Releases are fully automated by **semantic-release** ([.releaserc.json](.release
 - Don't use `--no-verify` to skip the commit-msg hook.
 - Don't add commitizen, standard-version, release-please, or changesets.
 - Don't emit wall-clock time, blank nodes, or unsorted output from the emitter — ever.
+- Don't let Prettier near `test/fixtures/` or `schemas/` — byte-exact baselines and immutable
+  published schemas. Keep `.prettierignore` covering them.
+- Don't disable an ESLint rule repo-wide to silence one call site; disable it inline, with the
+  reason (see the post-Ajv boundary in [src/core/config.ts](src/core/config.ts)).
 - Don't write dockg knowledge to Claude auto-memory — put it in this repo.
 
 ## Testing behavior
@@ -202,6 +224,10 @@ the repo's `CLAUDE_CODE_OAUTH_TOKEN` secret.
 
 - [.github/workflows/ci.yml](.github/workflows/ci.yml) — CI incl. the determinism gate and the
   determinism gate
-- [.releaserc.json](.releaserc.json) · [commitlint.config.cjs](commitlint.config.cjs) ·
-  [.husky/commit-msg](.husky/commit-msg)
+- [.releaserc.json](.releaserc.json) · [commitlint.config.cjs](commitlint.config.cjs)
+- [.husky/](.husky) — `commit-msg` (commitlint), `pre-commit` (lint-staged + typecheck),
+  `pre-push` (full loop)
+- [eslint.config.js](eslint.config.js) · [.prettierrc.json](.prettierrc.json) ·
+  [.prettierignore](.prettierignore) · [.npmrc](.npmrc) (`engine-strict`) ·
+  [.gitattributes](.gitattributes) (LF policy)
 - [schemas/](schemas) — published frontmatter JSON Schemas (the validate default)
