@@ -77,6 +77,10 @@ describe("collectGitHistory", () => {
         stderr: "fatal: not a git repository",
         timedOut: false,
       });
+    // The type is the contract, not just the text: cli.ts fail() maps
+    // DockgError to exit 2 and rethrows anything else, so a plain Error here
+    // would change the CLI's exit code.
+    await expect(collectGitHistory("/repo", exec)).rejects.toThrow(DockgError);
     await expect(collectGitHistory("/repo", exec)).rejects.toThrow(
       /not a git repository/,
     );
@@ -84,8 +88,15 @@ describe("collectGitHistory", () => {
 
   it("distinguishes timeouts and spawn failures from not-a-repo", async () => {
     const timedOut: ExecFn = () =>
-      Promise.resolve<ExecResult>({ code: null, stdout: "partial", stderr: "", timedOut: true });
-    await expect(collectGitHistory("/repo", timedOut)).rejects.toThrow(/timed out/);
+      Promise.resolve<ExecResult>({
+        code: null,
+        stdout: "partial",
+        stderr: "",
+        timedOut: true,
+      });
+    await expect(collectGitHistory("/repo", timedOut)).rejects.toThrow(
+      /timed out/,
+    );
 
     const spawnFail: ExecFn = () =>
       Promise.resolve<ExecResult>({
@@ -121,6 +132,8 @@ describe("collectGitHistory", () => {
       "",
     ].join("\n");
     const history = await collectGitHistory("/repo", mockExec(log));
-    expect(history.files.get("docs/café guide.md")!.authors).toEqual(["René Müller"]);
+    expect(history.files.get("docs/café guide.md")!.authors).toEqual([
+      "René Müller",
+    ]);
   });
 });
