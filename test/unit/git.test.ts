@@ -136,4 +136,41 @@ describe("collectGitHistory", () => {
       "René Müller",
     ]);
   });
+
+  it("unsets inherited GIT_* variables so ambient git state cannot redirect the read", async () => {
+    // git exports these to every hook subprocess. Inheriting them makes git log
+    // read that repo instead of cwd — same inputs, different graph.
+    process.env.GIT_DIR = "/somewhere/else/.git";
+    process.env.GIT_INDEX_FILE = "/somewhere/else/.git/index";
+    try {
+      let seen: Record<string, string | undefined> | undefined;
+      const exec: ExecFn = (_cmd, opts) => {
+        seen = opts?.env;
+        // Non-empty: an empty log is treated as "not a repo" and throws.
+        return Promise.resolve<ExecResult>({
+          code: 0,
+          stdout: [
+            `${SOH}c1\tA\t2026-01-01T00:00:00+00:00`,
+            "",
+            "A\ta.md",
+            "",
+          ].join("\n"),
+          stderr: "",
+          timedOut: false,
+        });
+      };
+      await collectGitHistory("/repo", exec);
+
+      // Present as keys with an undefined value — that is how the exec seam
+      // signals "remove", as opposed to merely not overriding them.
+      expect(seen).toBeDefined();
+      expect(Object.keys(seen!)).toContain("GIT_DIR");
+      expect(Object.keys(seen!)).toContain("GIT_INDEX_FILE");
+      expect(seen!.GIT_DIR).toBeUndefined();
+      expect(seen!.GIT_INDEX_FILE).toBeUndefined();
+    } finally {
+      delete process.env.GIT_DIR;
+      delete process.env.GIT_INDEX_FILE;
+    }
+  });
 });

@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { Parser } from "n3";
+import { hermeticEnv } from "../helpers/git-env.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const cli = join(root, "dist", "cli.js");
@@ -56,6 +57,64 @@ describe("dockg build (integration)", () => {
     expect(stdout).toMatch(/4 docs, \d+ triples/);
   });
 
+  it("provenance.git: an ambient GIT_DIR cannot redirect the build", () => {
+    // Running the suite from the husky pre-push hook exposed this: git exports
+    // GIT_DIR to hook subprocesses, and dockg inherited it, so a build outside
+    // a repo silently succeeded against the *hook's* repo and emitted a
+    // different graph. Must still be exit 2 — not a repo is not a repo.
+    //
+    // GIT_DIR points at a throwaway decoy rather than this repository: a
+    // regression here must not be able to touch real history. The decoy needs
+    // a commit, or the build would fail for want of history and the test would
+    // pass even while broken.
+    const env = hermeticEnv();
+    const decoy = mkdtempSync(join(tmpdir(), "dockg-decoy-"));
+    writeFileSync(join(decoy, "seed.md"), "# Seed\n");
+    execFileSync("git", ["init", "-q"], { cwd: decoy, env });
+    execFileSync(
+      "git",
+      ["-c", "user.email=t@t", "-c", "user.name=t", "add", "-A"],
+      { cwd: decoy, env },
+    );
+    execFileSync(
+      "git",
+      [
+        "-c",
+        "user.email=t@t",
+        "-c",
+        "user.name=t",
+        "commit",
+        "-q",
+        "-m",
+        "seed",
+      ],
+      { cwd: decoy, env },
+    );
+
+    const dir = mkdtempSync(join(tmpdir(), "dockg-gitenv-"));
+    writeFileSync(
+      join(dir, "dockg.config.yaml"),
+      'version: 1\ninputs: ["*.md"]\nprovenance:\n  git: true\n',
+    );
+    writeFileSync(join(dir, "a.md"), "# A\n");
+
+    let status = 0;
+    try {
+      execFileSync(
+        process.execPath,
+        [cli, "build", "--out", join(dir, "g.ttl")],
+        {
+          encoding: "utf8",
+          cwd: dir,
+          env: { ...env, GIT_DIR: join(decoy, ".git") },
+        },
+      );
+    } catch (e) {
+      status = (e as { status?: number }).status ?? -1;
+    }
+    expect(status).toBe(2);
+  });
+
   it("provenance.git: errors loudly outside a git repo, is byte-stable inside one", () => {
     const dir = mkdtempSync(join(tmpdir(), "dockg-gittime-"));
     writeFileSync(
@@ -81,11 +140,14 @@ describe("dockg build (integration)", () => {
     expect(status).toBe(2);
 
     // with a commit: endedAtTime appears and rebuilds are identical
-    execFileSync("git", ["init", "-q"], { cwd: dir });
+    // hermeticEnv: without it these inherit GIT_DIR when the suite runs from
+    // the pre-push hook, and operate on the dockg repo instead of `dir`.
+    const env = hermeticEnv();
+    execFileSync("git", ["init", "-q"], { cwd: dir, env });
     execFileSync(
       "git",
       ["-c", "user.email=t@t", "-c", "user.name=t", "add", "-A"],
-      { cwd: dir },
+      { cwd: dir, env },
     );
     execFileSync(
       "git",
@@ -99,7 +161,7 @@ describe("dockg build (integration)", () => {
         "-m",
         "init",
       ],
-      { cwd: dir },
+      { cwd: dir, env },
     );
     execFileSync(
       process.execPath,
