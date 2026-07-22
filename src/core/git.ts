@@ -69,6 +69,25 @@ export function unquoteGitPath(path: string): string {
   return Buffer.from(bytes).toString("utf8");
 }
 
+/**
+ * Unset every inherited `GIT_*` variable for the child process.
+ *
+ * git exports GIT_DIR, GIT_INDEX_FILE, GIT_WORK_TREE and friends to the
+ * subprocesses it runs — every hook, and anything spawned from one. Inheriting
+ * them makes `git log` read *that* repository instead of `cwd`, so the same
+ * inputs would yield a different graph depending on who invoked dockg, and a
+ * build outside a repo would silently succeed against an unrelated one. Both
+ * break the determinism contract, so the ambient state is dropped wholesale
+ * rather than enumerated: git keeps adding variables to this namespace.
+ */
+function clearedGitEnv(): Record<string, string | undefined> {
+  const cleared: Record<string, string | undefined> = {};
+  for (const key of Object.keys(process.env)) {
+    if (key.startsWith("GIT_")) cleared[key] = undefined;
+  }
+  return cleared;
+}
+
 export async function collectGitHistory(
   cwd: string,
   exec: ExecFn = realExec,
@@ -87,7 +106,7 @@ export async function collectGitHistory(
       // when the build runs in a subdirectory of the repo.
       "--relative",
     ],
-    { cwd, timeoutMs: 60000 },
+    { cwd, timeoutMs: 60000, env: clearedGitEnv() },
   );
   if (result.spawnError) {
     throw new DockgError(

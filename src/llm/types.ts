@@ -31,5 +31,10 @@ export interface ExecResult {
 
 export type ExecFn = (
   cmd: string[],
-  opts?: { cwd?: string; env?: Record<string, string>; timeoutMs?: number },
+  opts?: {
+    cwd?: string;
+    /** Overrides on the ambient environment; `undefined` *unsets* a variable. */
+    env?: Record<string, string | undefined>;
+    timeoutMs?: number;
+  },
 ) => Promise<ExecResult>;
