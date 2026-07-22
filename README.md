@@ -6,6 +6,26 @@ Deterministic knowledge graphs derived from documentation frontmatter and format
 
 It pairs with [docmeta](https://github.com/hawkeyexl/docmeta) (which powers `dockg validate`) and follows the same CLI conventions as [docevals](https://github.com/hawkeyexl/docevals). dockg's frontmatter schema is published in this repo at [`schemas/frontmatter-0.4.json`](schemas/frontmatter-0.4.json) — point any JSON Schema tool at it, e.g. `docmeta validate --schema node_modules/dockg/schemas/frontmatter-0.4.json docs/`.
 
+## What the graph is (and isn't)
+
+The graph is an **index and governance layer** over your docs — not a replacement
+for them, and not a retrieval corpus ([ADR 01008](adrs/01008-graph-as-index-not-corpus.md)).
+Prose never enters the graph; only metadata does. Consume it in two halves:
+
+- **The graph routes, filters, audits, and attributes.** Scope questions ("what
+  applies to this variant?"), impact analysis ("what references this doc?"),
+  compliance audit (`dockg check`), and provenance are graph jobs — the work a
+  typed graph does better than similarity search over text.
+- **The files carry the content.** Every Document and Section IRI resolves to an
+  exact span on disk: `dockg:path` gives the file, and a Section IRI's fragment
+  is the GitHub-style heading slug. Route with the graph, then read the text.
+
+**What isn't in the graph is invisible to anything querying the graph alone.** A
+fact that lives only in prose does not exist for a graph-only consumer — so a
+retrieval system built on dockg must read the files the graph points at rather
+than answering from triples. The more you lift into frontmatter, the more the
+graph can route and govern.
+
 ## Install
 
 ```bash
@@ -250,6 +270,25 @@ fill:
   fields: [prefLabel, altLabels, related, subjects]
   validateGraph: true    # reject proposals that would violate the shapes
 ```
+
+## Related standards
+
+Beyond the vocabularies dockg already emits (Dublin Core, SKOS, PROV-O,
+schema.org, FOAF), these standards inform where dockg is headed:
+
+- **[iiRDS](https://iirds.org/) 1.3** — the intelligent information Request and
+  Delivery Standard (tekom): the technical-communication industry's RDF
+  vocabulary for documentation semantics, covering topic typing
+  (task/concept/reference), product-variant applicability, and delivery
+  packages. dockg references published iiRDS IRIs where a term fits. The spec
+  is licensed CC BY-ND, so it is never vendored into this repo or modified —
+  only referenced.
+- **DIN SPEC 91526** — knowledge graphs for language models, and integrating
+  iiRDS into the Asset Administration Shell. Tracked as a modeling reference
+  for graphs built to be consumed by LLMs.
+- **[QUDT](https://qudt.org/)** — quantities, units, and dimensions. Relevant
+  if dockg ever lifts quantitative properties (sizes, tolerances) into the
+  graph.
 
 ## Contributing
 
