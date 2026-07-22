@@ -68,6 +68,16 @@
         }
       }
     },
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "shapes": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
     "provenance": {
       "type": "object",
       "additionalProperties": false,
@@ -89,6 +99,7 @@
         "maxCostUsd": { "type": ["number", "null"], "minimum": 0 },
         "cacheDir": { "type": "string", "minLength": 1 },
         "writeProvenance": { "type": "boolean" },
+        "validateGraph": { "type": "boolean" },
         "fields": {
           "type": "array",
           "uniqueItems": true,

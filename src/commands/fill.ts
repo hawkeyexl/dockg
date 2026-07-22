@@ -17,6 +17,8 @@ import {
   existingProvenance,
   frontmatterKind,
 } from "../core/frontmatter-edit.js";
+import { FillGuard } from "../core/fill-guard.js";
+import { bundledShapesPath } from "../core/pkg.js";
 import { DockgError } from "../types.js";
 import { FillCache, cacheKey } from "../llm/cache.js";
 import { costOfUsage, pricingFor } from "../llm/cost.js";
@@ -41,6 +43,8 @@ export interface FillOptions {
   maxCost?: number;
   provider?: string;
   model?: string;
+  /** Disable the graph guardrail (`--no-validate-graph`). */
+  noValidateGraph?: boolean;
   /** Injection seam for tests: bypasses the provider factory. */
   providerInstance?: LlmProvider;
 }
@@ -60,6 +64,8 @@ export interface FillDocResult {
   fields: string[];
   /** Human-set fields the proposal was not allowed to touch. */
   preserved: string[];
+  /** Fields dropped by the graph guardrail (fill.validateGraph). */
+  rejected?: string[];
   cached: boolean;
   error?: string;
 }
@@ -124,6 +130,32 @@ export async function runFill(opts: FillOptions = {}): Promise<FillReport> {
   const allPaths = new Set(files);
   const results: FillDocResult[] = [];
   let costUsd = 0;
+
+  // Graph guardrail: simulate each proposal against the SHACL shapes before
+  // writing it. Off via fill.validateGraph: false or --no-validate-graph.
+  // The guard's base state is the FULL configured corpus, not the positional
+  // glob subset — a proposal for one doc can cycle with hierarchy that lives
+  // in a doc outside the subset being filled.
+  const shapesPaths =
+    config.check.shapes.length > 0
+      ? config.check.shapes.map((p) => resolve(cwd, p))
+      : [bundledShapesPath(import.meta.url)];
+  const guardFiles = [
+    ...new Set([
+      ...discoverFiles(config.inputs, config.exclude, cwd),
+      ...files,
+    ]),
+  ];
+  const guard =
+    !opts.noValidateGraph && config.fill.validateGraph
+      ? FillGuard.create(
+          guardFiles,
+          cwd,
+          config,
+          shapesPaths,
+          opts.force ?? false,
+        )
+      : undefined;
 
   for (const path of files) {
     // Read failures are operational (deleted file, permissions) — abort the
@@ -228,12 +260,32 @@ export async function runFill(opts: FillOptions = {}): Promise<FillReport> {
 
     // The 0.1 schema requires prefLabel alongside any label/relation field
     // (dependentRequired) — never write output our own validate rejects.
-    const willHavePrefLabel =
-      present.has("prefLabel") ||
-      (typeof narrowed["prefLabel"] === "string" &&
-        narrowed["prefLabel"].length > 0);
-    if (!willHavePrefLabel) {
-      for (const field of RELATION_FIELDS) delete narrowed[field];
+    // Rechecked after the guardrail: rejecting prefLabel takes the relation
+    // fields down with it.
+    const gatePrefLabel = (): void => {
+      const hasPrefLabel =
+        present.has("prefLabel") ||
+        (typeof narrowed["prefLabel"] === "string" &&
+          narrowed["prefLabel"].length > 0);
+      if (!hasPrefLabel) {
+        for (const field of RELATION_FIELDS) delete narrowed[field];
+      }
+    };
+    gatePrefLabel();
+
+    // Graph guardrail: drop any field whose triples would violate the
+    // shapes contract (cycles, related⨯broader conflicts, second spellings
+    // of an existing concept). Cached proposals are vetted too — rejection
+    // sits downstream of the cache, so a later corpus change can re-admit
+    // a proposal without re-asking the LLM.
+    let rejected: string[] | undefined;
+    if (guard) {
+      const vetted = await guard.vet(path, content, narrowed);
+      if (vetted.rejected.length > 0) {
+        rejected = vetted.rejected.map((r) => r.field);
+        for (const field of rejected) delete narrowed[field];
+        gatePrefLabel();
+      }
     }
 
     // Which fields will actually be written (mirrors applyKgFields' filter);
@@ -250,6 +302,7 @@ export async function runFill(opts: FillOptions = {}): Promise<FillReport> {
         status: "nothing-proposed",
         fields: [],
         preserved: [],
+        ...(rejected ? { rejected } : {}),
         cached,
       };
     }
@@ -290,16 +343,21 @@ export async function runFill(opts: FillOptions = {}): Promise<FillReport> {
         status: "nothing-proposed",
         fields: [],
         preserved: applied.skipped,
+        ...(rejected ? { rejected } : {}),
         cached,
       };
     }
 
     if (!opts.dryRun) writeFileSync(absPath, applied.content, "utf8");
+    // Fold the accepted result into the guard even on --dry-run, so the dry
+    // run predicts exactly what a real run would accept and reject.
+    guard?.commit(path, applied.content);
     return {
       path,
       status: opts.dryRun ? "proposed" : "filled",
       fields: reportedFields,
       preserved: applied.skipped,
+      ...(rejected ? { rejected } : {}),
       cached,
     };
   }
@@ -312,22 +370,28 @@ export function renderFill(
   if (format === "json") return JSON.stringify(report, null, 2);
   const lines: string[] = [];
   for (const r of report.results) {
+    const dropped =
+      r.rejected && r.rejected.length > 0
+        ? ` [graph check rejected: ${r.rejected.join(", ")}]`
+        : "";
     switch (r.status) {
       case "filled":
         lines.push(
-          `filled    ${r.path} (${r.fields.join(", ")})${r.cached ? " [cached]" : ""}`,
+          `filled    ${r.path} (${r.fields.join(", ")})${r.cached ? " [cached]" : ""}${dropped}`,
         );
         break;
       case "proposed":
         lines.push(
-          `proposed  ${r.path} (${r.fields.join(", ")})${r.cached ? " [cached]" : ""} — dry run, not written`,
+          `proposed  ${r.path} (${r.fields.join(", ")})${r.cached ? " [cached]" : ""}${dropped} — dry run, not written`,
         );
         break;
       case "complete":
         lines.push(`complete  ${r.path}`);
         break;
       case "nothing-proposed":
-        lines.push(`no-op     ${r.path} (model proposed nothing new)`);
+        lines.push(
+          `no-op     ${r.path} (model proposed nothing new)${dropped}`,
+        );
         break;
       case "skipped-budget":
         lines.push(`skipped   ${r.path} (cost budget exhausted)`);

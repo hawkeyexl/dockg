@@ -17,7 +17,8 @@
   },
   "files": [
     "dist",
-    "schemas"
+    "schemas",
+    "shapes"
   ],
   "repository": {
     "type": "git",
@@ -77,6 +78,7 @@
     "mdast-util-to-string": "^4.0.0",
     "n3": "^1.26.0",
     "picocolors": "^1.1.1",
+    "rdf-validate-shacl": "^0.6.5",
     "remark-frontmatter": "^5.0.0",
     "remark-gfm": "^4.0.0",
     "remark-parse": "^11.0.0",

@@ -47,6 +47,11 @@ provenance:
 # validate:
 #   schemas: ["./my-schema.json"]
 
+# SHACL shapes \`dockg check\` validates the built graph against. Default:
+# the shapes contract bundled with dockg (shapes/dockg-0.1.ttl).
+# check:
+#   shapes: ["./my-shapes.ttl"]
+
 # LLM settings for \`dockg fill\` (SKOS frontmatter proposals).
 fill:
   provider: anthropic          # anthropic | openai | claude-cli | mock
@@ -59,6 +64,9 @@ fill:
   fields: [prefLabel, altLabels, related, subjects]
   # Record kg.provenance (model + machine-filled fields) on filled docs.
   writeProvenance: true
+  # Reject proposals that would violate the SHACL shapes contract
+  # (broader/narrower cycles, conflicting labels).
+  validateGraph: true
 `;
 
 export function runInit(cwd = process.cwd()): string {
