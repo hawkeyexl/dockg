@@ -4,6 +4,7 @@ import pc from "picocolors";
 import { DockgError } from "./types.js";
 import { toolVersion } from "./core/pkg.js";
 import { runBuild } from "./commands/build.js";
+import { renderCheck, runCheck } from "./commands/check.js";
 import { renderQuery, runQuery } from "./commands/query.js";
 import { renderValidate, runValidate } from "./commands/validate.js";
 import { renderFill, runFill } from "./commands/fill.js";
@@ -60,6 +61,35 @@ program
   });
 
 program
+  .command("check")
+  .description(
+    "Validate the built graph against the dockg SHACL shapes (violations exit 1)",
+  )
+  .option("-c, --config <path>", "Path to dockg.config.yaml")
+  .option("-g, --graph <path>", "Graph .ttl path (default: config out)")
+  .option(
+    "--shapes <paths...>",
+    "Shapes .ttl files (default: config check.shapes, then bundled)",
+  )
+  .option("-f, --format <format>", "Output format: pretty | json", "pretty")
+  .action(
+    async (opts: {
+      config?: string;
+      graph?: string;
+      shapes?: string[];
+      format: string;
+    }) => {
+      try {
+        const report = await runCheck(opts);
+        console.log(renderCheck(report, opts.format as "pretty" | "json"));
+        process.exitCode = report.exitCode;
+      } catch (e) {
+        fail(e);
+      }
+    },
+  );
+
+program
   .command("validate")
   .description("Check docs are KG-ready (frontmatter validated via docmeta)")
   .argument("[globs...]", "Input globs (default: config inputs)")
@@ -88,6 +118,7 @@ program
   .option("--dry-run", "Report proposals without writing files")
   .option("--force", "Overwrite human-set kg fields")
   .option("--no-cache", "Bypass the proposal cache")
+  .option("--no-validate-graph", "Skip the SHACL graph guardrail on proposals")
   .option("--max-cost <usd>", "Stop proposing past this cost", (v) =>
     Number.parseFloat(v),
   )
@@ -104,6 +135,7 @@ program
         dryRun: opts.dryRun as boolean | undefined,
         force: opts.force as boolean | undefined,
         noCache: opts.cache === false,
+        noValidateGraph: opts.validateGraph === false,
         maxCost: opts.maxCost as number | undefined,
         provider: opts.provider as string | undefined,
         model: opts.model as string | undefined,

@@ -53,6 +53,11 @@ export interface DockgConfig {
   routes: RouteMapping[];
   build: { derive: DeriveSource[] };
   validate: { schemas: string[] };
+  /** Graph-level SHACL validation (`dockg check`). */
+  check: {
+    /** Shapes .ttl paths; empty = the shapes bundled with dockg. */
+    shapes: string[];
+  };
   provenance: {
     /**
      * Gate for ALL git-derived provenance: per-file dates/authors, rename →
@@ -78,6 +83,8 @@ export interface DockgConfig {
     fields: FillField[];
     /** Record kg.provenance on filled docs. */
     writeProvenance: boolean;
+    /** Reject proposals that would violate the SHACL shapes contract. */
+    validateGraph: boolean;
     pricing?: Pricing;
   };
   /** Absolute path of the loaded config file. */
@@ -166,6 +173,10 @@ export function parseConfig(text: string, configPath: string): DockgConfig {
       // Empty means: use the newest schema bundled with dockg (see bundledSchemaPath).
       schemas: r.validate?.schemas ?? [],
     },
+    check: {
+      // Empty means: use the shapes bundled with dockg (see bundledShapesPath).
+      shapes: r.check?.shapes ?? [],
+    },
     provenance: {
       git: r.provenance?.git ?? false,
       qualified: r.provenance?.qualified ?? false,
@@ -186,6 +197,7 @@ export function parseConfig(text: string, configPath: string): DockgConfig {
         "subjects",
       ],
       writeProvenance: r.fill?.writeProvenance ?? true,
+      validateGraph: r.fill?.validateGraph ?? true,
       pricing: r.fill?.pricing,
     },
     configPath: abs,

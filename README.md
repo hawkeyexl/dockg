@@ -22,9 +22,10 @@ dockg build           # derive the graph -> kg/graph.ttl
 dockg stats           # counts, orphan docs, broken links, hubs
 dockg query -p dcterms:references   # who links to what
 dockg validate        # KG-readiness via docmeta
+dockg check           # graph-level SHACL validation
 ```
 
-Exit codes: `0` ok · `1` findings (validation failures, `stats --check` broken links, `fill` errors) · `2` operational error.
+Exit codes: `0` ok · `1` findings (validation failures, `check` violations, `stats --check` broken links, `fill` errors) · `2` operational error.
 
 ## What gets derived
 
@@ -144,6 +145,39 @@ These fields are validated by **`schemas/frontmatter-0.4.json`** (bundled with
 the package; the default for `dockg validate`). Earlier versions
 (`frontmatter-0.1.json`, `frontmatter-0.2.json`) remain published alongside it.
 
+## Graph validation (SHACL)
+
+`dockg check` validates the **assembled graph** — the thing `dockg validate` structurally cannot see, because per-file JSON Schema runs before N docs merge into shared nodes:
+
+```bash
+dockg build && dockg check
+```
+
+The rules live in a published SHACL shapes contract, [`shapes/dockg-0.1.ttl`](shapes/dockg-0.1.ttl), bundled with the package (override with `check.shapes` or `--shapes`). Like the frontmatter schemas, published shapes files are immutable — the contract evolves by adding a new version file. Point any SHACL tool at it to validate your own merged graphs against the same rules.
+
+What it catches:
+
+| Finding | Severity |
+|---|---|
+| `skos:broader`/`skos:narrower` cycles (a concept as its own ancestor) | violation |
+| `skos:related` conflicting with `skos:broaderTransitive` (SKOS S27) | violation |
+| concepts missing `skos:prefLabel` or `skos:inScheme`; untyped relation targets | violation |
+| unexpected predicates on Document/Section/Concept/agent nodes (`sh:closed` — the graph-side `additionalProperties: false`) | violation |
+| broken PROV wiring (activities without types, agents without `foaf:name`) | violation |
+| one concept carrying two `prefLabel` spellings (slug convergence, e.g. `Configuration` + `configuration`) | warning |
+| `dcterms:subject` pointing at a non-`skos:Concept` node | warning |
+
+Violations exit `1`; warnings are reported but exit `0` (spelling convergence is a designed feature — the warning tells you to settle on one spelling, not that the build is broken). Every finding is mapped back to the doc file(s) responsible:
+
+```
+violation: concept/beta skos:broader — skos:broader cycle through concept/alpha, concept/beta — a concept cannot be its own ancestor [docs/alpha.md, docs/beta.md]
+warning: concept/shared-term skos:prefLabel — concept carries multiple prefLabels … [docs/alpha.md, docs/gamma.md]
+
+1 violation, 1 warning
+```
+
+Cycle detection and the transitive SKOS checks run in dockg itself (core SHACL cannot express them); everything else is the shapes file. The same rules power the `dockg fill` guardrail, so LLM hierarchy proposals are verified on write.
+
 ## Route mappings
 
 Doc sites (Fern, Starlight, Hugo, Docusaurus) link by *published route* (`/docs/actions/find`), not by source file. Route mappings teach dockg how routes map back to files so those links become real graph edges — and so routes under a mapped prefix with **no** matching file are reported as broken (they name pages that should exist):
@@ -173,7 +207,8 @@ dockg fill --force            # overwrite human-set kg fields too
 - Providers: **anthropic** (default, `ANTHROPIC_API_KEY`), **openai** (any OpenAI-compatible endpoint via `fill.baseUrl`), **claude-cli** (local `claude` auth, no key), **mock** (offline).
 - Proposals are cached by content (`.dockg/cache/`) — unchanged docs never re-ask.
 - Cost is tracked and budgeted (`fill.maxCostUsd`, `--max-cost`).
-- `broader`/`narrower` are **off by default** (`fill.fields`): hierarchy proposals hallucinate most. Opt in deliberately, and review with `--dry-run` first.
+- `broader`/`narrower` are **off by default** (`fill.fields`): hierarchy proposals hallucinate most. When you opt in, the graph guardrail (below) verifies every proposal before it is written.
+- Every proposal is simulated against the [SHACL shapes contract](#graph-validation-shacl) before writing (`fill.validateGraph`, on by default; `--no-validate-graph` to skip): fields that would create a `broader` cycle, a `related`/`broader` conflict, or a second spelling of an existing concept are dropped and reported as `[graph check rejected: …]`. Accepted proposals accumulate within the run, so two docs can't jointly form a cycle.
 - Human-set fields always win unless `--force`.
 
 ## Commands
@@ -183,11 +218,12 @@ dockg fill --force            # overwrite human-set kg fields too
 | `dockg init` | Scaffold a starter `dockg.config.yaml` |
 | `dockg build [globs]` | Derive the graph and write deterministic Turtle |
 | `dockg validate [globs]` | Check KG frontmatter via docmeta (bundled `schemas/frontmatter-0.4.json`) |
+| `dockg check` | Validate the built graph against the SHACL shapes (bundled `shapes/dockg-0.1.ttl`) |
 | `dockg fill [globs]` | Propose SKOS `kg:` fields with an LLM and write them back |
 | `dockg query` | Triple-pattern match: `-s`/`-p`/`-o`, omit for wildcard |
 | `dockg stats` | Counts, orphan docs, broken links, most-connected docs; `--check` gates CI |
 
-Shared flags: `-c/--config`, `-f/--format pretty|json`; `build` takes `-o/--out`; `query`/`stats` take `-g/--graph`. SPARQL is a planned upgrade behind `query`.
+Shared flags: `-c/--config`, `-f/--format pretty|json`; `build` takes `-o/--out`; `query`/`stats`/`check` take `-g/--graph`; `check` takes `--shapes`. SPARQL is a planned upgrade behind `query`.
 
 ## Configuration
 
@@ -205,12 +241,14 @@ provenance:
   git: false         # opt-in: per-file git dates/authors, rename revisions, build endedAtTime
   qualified: false   # opt-in: qualified attribution/association nodes with roles
 # validate.schemas defaults to the bundled schemas/frontmatter-0.4.json
+# check.shapes defaults to the bundled shapes/dockg-0.1.ttl
 fill:
   provider: anthropic
   temperature: 0
   maxCostUsd: 5
   cacheDir: .dockg/cache
   fields: [prefLabel, altLabels, related, subjects]
+  validateGraph: true    # reject proposals that would violate the shapes
 ```
 
 ## Contributing

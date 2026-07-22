@@ -26,3 +26,8 @@ export function toolVersion(moduleUrl: string): string {
 export function bundledSchemaPath(moduleUrl: string): string {
   return join(packageRoot(moduleUrl), "schemas", "frontmatter-0.4.json");
 }
+
+/** Absolute path of the bundled SHACL shapes `dockg check` defaults to. */
+export function bundledShapesPath(moduleUrl: string): string {
+  return join(packageRoot(moduleUrl), "shapes", "dockg-0.1.ttl");
+}

@@ -23,6 +23,9 @@ describe("parseConfig", () => {
     ]);
     // empty = use the schema bundled with dockg (schemas/frontmatter-0.2.json)
     expect(c.validate.schemas).toEqual([]);
+    // empty = use the shapes bundled with dockg (shapes/dockg-0.1.ttl)
+    expect(c.check.shapes).toEqual([]);
+    expect(c.fill.validateGraph).toBe(true);
     expect(c.provenance).toEqual({ git: false, qualified: false });
     expect(c.fill.writeProvenance).toBe(true);
     expect(c.provenance).toEqual({ git: false, qualified: false });
@@ -61,6 +64,24 @@ describe("parseConfig", () => {
   it("rejects invalid YAML", () => {
     expect(() =>
       parseConfig("version: [1\n", "/tmp/dockg.config.yaml"),
+    ).toThrow(DockgError);
+  });
+
+  it("parses check.shapes and fill.validateGraph overrides", () => {
+    const c = parseConfig(
+      "version: 1\ncheck:\n  shapes: [my-shapes.ttl]\nfill:\n  validateGraph: false\n",
+      "/tmp/dockg.config.yaml",
+    );
+    expect(c.check.shapes).toEqual(["my-shapes.ttl"]);
+    expect(c.fill.validateGraph).toBe(false);
+  });
+
+  it("rejects unknown check keys", () => {
+    expect(() =>
+      parseConfig(
+        "version: 1\ncheck:\n  bogus: true\n",
+        "/tmp/dockg.config.yaml",
+      ),
     ).toThrow(DockgError);
   });
 

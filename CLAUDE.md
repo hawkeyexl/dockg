@@ -57,12 +57,15 @@ gotcha, a decision, a convention — record it **in the repo, in the same change
 - **Naming:** the *frontmatter key* is `kg:`; the *RDF namespace prefix* is `dockg:`
   (`https://dockg.dev/ns#`). Never conflate them. The custom namespace stays minimal — prefer
   dcterms/skos/prov/schema.org/foaf terms wherever one exists.
-- **Schemas are self-hosted.** dockg's frontmatter JSON Schemas live in [schemas/](schemas) and
-  ship in the npm package; `dockg validate` defaults to the bundled newest version by file path.
-  Never add dockg schemas to docmeta's built-in registry — that pattern was deliberately removed.
-  Published schema files are immutable; evolve by adding a new version file.
-- **Exit codes:** `0` ok · `1` findings (validation failures, `stats --check` broken links, fill
-  errors) · `2` operational error (`DockgError`). `cli.ts fail()` rethrows non-DockgError.
+- **Schemas and shapes are self-hosted.** dockg's frontmatter JSON Schemas live in
+  [schemas/](schemas) and its SHACL shapes contract in [shapes/](shapes); both ship in the npm
+  package, and `dockg validate` / `dockg check` default to the bundled newest version by file
+  path. Never add dockg schemas to docmeta's built-in registry — that pattern was deliberately
+  removed. Published schema and shapes files are immutable; evolve by adding a new version file.
+- **Exit codes:** `0` ok · `1` findings (validation failures, `check` violations, `stats --check`
+  broken links, fill errors) · `2` operational error (`DockgError`). `cli.ts fail()` rethrows
+  non-DockgError. SHACL severities map onto this: `sh:Violation` → 1, `sh:Warning`/`sh:Info` →
+  reported but 0.
 - **No network in tests.** LLM code paths are tested through `MockProvider`
   (`src/llm/providers/mock.ts`), exported publicly for downstream use. The exec seam is
   injectable for git/CLI subprocess tests.
@@ -137,6 +140,16 @@ run, configure, or rely on? **If yes, the docs are part of the change's definiti
 README (vocabulary table, config sample, commands table), the `dockg init` starter template, and
 command `--help` text all land in the same commit. If no (pure refactor, internal-only), say so
 in the commit body. Rule of thumb: a change that warrants an ADR has docs impact.
+
+## SHACL shapes impact (required)
+
+Behavior change → answer explicitly: does this change what the emitted graph contains or means
+(new predicates, new node types, changed cardinalities)? **If yes, the SHACL shapes are part of
+the change's definition-of-done**: update [shapes/](shapes) (a new version file when the
+published contract must change — shipped shapes are immutable), keep the clean-corpus
+`dockg check` gate green (`test/integration/check.test.ts`), and note the shapes impact in the
+commit body. If no, say so in the commit body. The closed shapes (`sh:closed`) mean a new derive
+predicate **will** fail `dockg check` until the shapes learn it — that failure is the feature.
 
 ## Commit messages (required)
 

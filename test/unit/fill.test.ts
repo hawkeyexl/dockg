@@ -300,3 +300,128 @@ describe("runFill", () => {
     expect(provider.requests[0]!.user).not.toContain("prefLabel,");
   });
 });
+
+describe("runFill graph guardrail (fill.validateGraph)", () => {
+  const HIERARCHY_CONFIG = "fill:\n  fields: [prefLabel, broader, related]\n";
+
+  it("rejects a broader proposal that would create a cycle", async () => {
+    const dir = setup(
+      {
+        // Human-set hierarchy: Alpha is below Beta.
+        "a.md":
+          "---\ntitle: A\nkg:\n  prefLabel: Alpha\n  broader: [Beta]\n---\n\n# A\n",
+        "b.md": "---\ntitle: B\n---\n\n# B\n",
+      },
+      HIERARCHY_CONFIG,
+    );
+    // Model proposes the inverse for b.md — a two-node cycle.
+    const provider = new MockProvider([
+      { json: { prefLabel: "Beta", broader: ["Alpha"] } },
+    ]);
+    const report = await runFill({ cwd: dir, providerInstance: provider });
+    expect(report.exitCode).toBe(0);
+    const result = report.results.find((r) => r.path === "b.md");
+    expect(result).toMatchObject({ status: "filled", fields: ["prefLabel"] });
+    expect(result!.rejected).toContain("broader");
+    const written = readFileSync(join(dir, "b.md"), "utf8");
+    expect(written).toContain("prefLabel: Beta");
+    expect(written).not.toContain("broader");
+  });
+
+  it("accumulates accepted proposals so two docs cannot jointly form a cycle", async () => {
+    const dir = setup(
+      {
+        "c.md": "---\ntitle: C\n---\n\n# C\n",
+        "d.md": "---\ntitle: D\n---\n\n# D\n",
+      },
+      HIERARCHY_CONFIG,
+    );
+    const provider = new MockProvider([
+      { json: { prefLabel: "C", broader: ["D"] } },
+      { json: { prefLabel: "D", broader: ["C"] } },
+    ]);
+    const report = await runFill({ cwd: dir, providerInstance: provider });
+    const first = report.results.find((r) => r.path === "c.md");
+    const second = report.results.find((r) => r.path === "d.md");
+    expect(first).toMatchObject({ fields: ["prefLabel", "broader"] });
+    expect(second!.rejected).toContain("broader");
+    expect(readFileSync(join(dir, "d.md"), "utf8")).not.toContain("broader");
+  });
+
+  it("rejects a prefLabel that collides with an existing concept spelling", async () => {
+    const dir = setup(
+      {
+        "a.md": "---\ntitle: A\ntags: [Setup]\n---\n\n# A\n",
+        "b.md": "---\ntitle: B\n---\n\n# B\n",
+      },
+      HIERARCHY_CONFIG,
+    );
+    // Same slug, different spelling — would put two prefLabels on one concept.
+    const provider = new MockProvider([{ json: { prefLabel: "setup" } }]);
+    const original = readFileSync(join(dir, "b.md"), "utf8");
+    const report = await runFill({ cwd: dir, providerInstance: provider });
+    const result = report.results.find((r) => r.path === "b.md");
+    expect(result!.rejected).toContain("prefLabel");
+    expect(result).toMatchObject({ status: "nothing-proposed" });
+    expect(readFileSync(join(dir, "b.md"), "utf8")).toBe(original);
+  });
+
+  it("accepts a prefLabel that reuses the existing spelling exactly", async () => {
+    const dir = setup(
+      {
+        "a.md": "---\ntitle: A\ntags: [Setup]\n---\n\n# A\n",
+        "b.md": "---\ntitle: B\n---\n\n# B\n",
+      },
+      HIERARCHY_CONFIG,
+    );
+    const provider = new MockProvider([{ json: { prefLabel: "Setup" } }]);
+    const report = await runFill({ cwd: dir, providerInstance: provider });
+    expect(report.results.find((r) => r.path === "b.md")).toMatchObject({
+      status: "filled",
+      fields: ["prefLabel"],
+    });
+  });
+
+  it("fill.validateGraph: false writes the cycle anyway", async () => {
+    const dir = setup(
+      {
+        "a.md":
+          "---\ntitle: A\nkg:\n  prefLabel: Alpha\n  broader: [Beta]\n---\n\n# A\n",
+        "b.md": "---\ntitle: B\n---\n\n# B\n",
+      },
+      "fill:\n  fields: [prefLabel, broader, related]\n  validateGraph: false\n",
+    );
+    const provider = new MockProvider([
+      { json: { prefLabel: "Beta", broader: ["Alpha"] } },
+    ]);
+    const report = await runFill({ cwd: dir, providerInstance: provider });
+    expect(report.results.find((r) => r.path === "b.md")).toMatchObject({
+      status: "filled",
+      fields: ["prefLabel", "broader"],
+    });
+    expect(readFileSync(join(dir, "b.md"), "utf8")).toContain("broader");
+  });
+
+  it("noValidateGraph option overrides config", async () => {
+    const dir = setup(
+      {
+        "a.md":
+          "---\ntitle: A\nkg:\n  prefLabel: Alpha\n  broader: [Beta]\n---\n\n# A\n",
+        "b.md": "---\ntitle: B\n---\n\n# B\n",
+      },
+      HIERARCHY_CONFIG,
+    );
+    const provider = new MockProvider([
+      { json: { prefLabel: "Beta", broader: ["Alpha"] } },
+    ]);
+    const report = await runFill({
+      cwd: dir,
+      providerInstance: provider,
+      noValidateGraph: true,
+    });
+    expect(readFileSync(join(dir, "b.md"), "utf8")).toContain("broader");
+    expect(
+      report.results.find((r) => r.path === "b.md")!.rejected,
+    ).toBeUndefined();
+  });
+});
