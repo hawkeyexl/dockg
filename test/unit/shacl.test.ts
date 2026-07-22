@@ -32,6 +32,9 @@ function build(
   return store;
 }
 
+/** A well-formed sha256 hex digest (64 hex chars). */
+const HASH = "a".repeat(64);
+
 /** A minimal conforming graph: one doc, one typed concept, the scheme. */
 function conformingTriples(): Array<
   [string, string, string | { lit: string }]
@@ -41,6 +44,7 @@ function conformingTriples(): Array<
   return [
     [d, RDF_TYPE, `${NS.dockg}Document`],
     [d, `${NS.dockg}path`, { lit: "docs/a.md" }],
+    [d, `${NS.dockg}contentHash`, { lit: HASH }],
     [d, `${NS.dcterms}title`, { lit: "A" }],
     [d, `${NS.dcterms}subject`, c],
     [c, RDF_TYPE, `${NS.skos}Concept`],
@@ -131,6 +135,41 @@ describe("validateGraph", () => {
     );
     expect(hit).toBeDefined();
     expect(hit!.severity).toBe("warning");
+  });
+
+  it("flags a document missing dockg:contentHash", async () => {
+    const d = doc("docs/a.md");
+    const triples = conformingTriples().filter(
+      ([, p]) => p !== `${NS.dockg}contentHash`,
+    );
+    const findings = await validateGraph(build(triples), SHAPES);
+    expect(
+      findings.some(
+        (f) =>
+          f.focusNode === d &&
+          f.path === `${NS.dockg}contentHash` &&
+          f.severity === "violation",
+      ),
+    ).toBe(true);
+  });
+
+  it("flags a malformed contentHash (not a 64-char hex digest)", async () => {
+    const d = doc("docs/a.md");
+    const triples = conformingTriples().map(
+      (t): [string, string, string | { lit: string }] =>
+        t[1] === `${NS.dockg}contentHash`
+          ? [t[0], t[1], { lit: "not-a-hash" }]
+          : t,
+    );
+    const findings = await validateGraph(build(triples), SHAPES);
+    expect(
+      findings.some(
+        (f) =>
+          f.focusNode === d &&
+          f.path === `${NS.dockg}contentHash` &&
+          f.severity === "violation",
+      ),
+    ).toBe(true);
   });
 
   it("closed Document shape rejects unexpected predicates", async () => {

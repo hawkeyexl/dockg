@@ -4,6 +4,7 @@
  * body structure (headings, links, images, code fences) comes from a
  * remark/mdast walk with positions in document order.
  */
+import { createHash } from "node:crypto";
 import { unified } from "unified";
 import remarkParse from "remark-parse";
 import remarkGfm from "remark-gfm";
@@ -350,6 +351,9 @@ export function analyzeDoc(
     links,
     images,
     codeLanguages: [...codeLanguages].sort(),
+    // Hashed over the UTF-8 content as read — line endings included, so the
+    // digest is byte-faithful for any valid-UTF-8 file (CRLF ≠ LF).
+    contentHash: createHash("sha256").update(content, "utf8").digest("hex"),
   };
 }
 

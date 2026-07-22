@@ -1,7 +1,8 @@
 /**
  * Namespace table. Standard vocabularies wherever a term exists; the custom
- * `dockg:` namespace stays minimal (2 classes, 5 properties). The prefix set
- * is fixed — every emitted graph carries the same header.
+ * `dockg:` namespace stays minimal (2 classes, 8 properties, 3 role
+ * individuals). The prefix set is fixed — every emitted graph carries the
+ * same header.
  */
 export const NS = {
   dcterms: "http://purl.org/dc/terms/",
