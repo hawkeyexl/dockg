@@ -9,6 +9,11 @@ export {
   type GitMode,
   type Pricing,
 } from "./core/config.js";
+export {
+  COVERAGE_FIELDS,
+  COVERAGE_FIELD_NAMES,
+  type CoverageField,
+} from "./core/coverage.js";
 export { discoverFiles } from "./core/discover.js";
 export {
   conceptSlug,
@@ -64,6 +69,7 @@ export {
 } from "./commands/query.js";
 export {
   runStats,
+  type CoverageRow,
   type StatsOptions,
   type StatsReport,
 } from "./commands/stats.js";

@@ -183,13 +183,23 @@ program
 
 program
   .command("stats")
-  .description("Summarize the built graph: counts, orphans, broken links, hubs")
+  .description(
+    "Summarize the built graph: counts, orphans, broken links, hubs, metadata coverage",
+  )
   .option("-c, --config <path>", "Path to dockg.config.yaml")
   .option("-g, --graph <path>", "Graph .ttl path (default: config out)")
   .option("-f, --format <format>", "Output format: pretty | json", "pretty")
-  .option("--check", "Exit 1 when broken internal links exist")
+  .option(
+    "--check",
+    "Exit 1 when broken internal links exist or coverage is below threshold",
+  )
   .option("--top <n>", "How many most-connected docs to list", (v) =>
     Number.parseInt(v, 10),
+  )
+  .option(
+    "--coverage-threshold <pct>",
+    "Minimum metadata coverage % (all fields); overrides config for this run",
+    (v) => Number.parseFloat(v),
   )
   .action(
     (opts: {
@@ -198,6 +208,7 @@ program
       format: string;
       check?: boolean;
       top?: number;
+      coverageThreshold?: number;
     }) => {
       try {
         const report = runStats(opts);

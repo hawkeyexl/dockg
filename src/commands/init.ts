@@ -55,6 +55,13 @@ provenance:
 # check:
 #   shapes: ["./my-shapes.ttl"]
 
+# Metadata coverage gate for \`dockg stats --check\`. A number applies to
+# every measured field; a map gates named fields only. Unset gates nothing.
+# stats:
+#   coverageThreshold:
+#     title: 100
+#     description: 50
+
 # LLM settings for \`dockg fill\` (SKOS frontmatter proposals).
 fill:
   provider: anthropic          # anthropic | openai | claude-cli | mock

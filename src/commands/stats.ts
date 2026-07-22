@@ -1,13 +1,15 @@
 /**
  * `dockg stats` — graph health summary: node/edge counts, orphan docs
- * (no incoming or outgoing references), broken internal links, and the
- * most-connected docs. `--check` exits 1 when broken links exist.
+ * (no incoming or outgoing references), broken internal links, the
+ * most-connected docs, and metadata coverage. `--check` exits 1 when broken
+ * links exist or a coverage threshold is unmet.
  */
 import { resolve } from "node:path";
 import { DataFactory, type Store } from "n3";
 import { loadConfig } from "../core/config.js";
 import { loadGraph } from "../core/load.js";
 import { NS, RDF_TYPE } from "../core/vocab.js";
+import { COVERAGE_FIELDS } from "../core/coverage.js";
 
 const { namedNode } = DataFactory;
 
@@ -15,10 +17,25 @@ export interface StatsOptions {
   config?: string;
   graph?: string;
   cwd?: string;
-  /** Exit 1 when broken links exist. */
+  /** Exit 1 when broken links exist or a coverage threshold is unmet. */
   check?: boolean;
   /** How many most-connected docs to list. */
   top?: number;
+  /**
+   * Uniform minimum coverage percentage, overriding config across every field.
+   * The per-field map form is config-only.
+   */
+  coverageThreshold?: number;
+}
+
+/** One row of the metadata coverage report. */
+export interface CoverageRow {
+  field: string;
+  predicate: string;
+  /** Documents carrying the predicate. */
+  docs: number;
+  /** Percentage of documents covered, rounded to one decimal. */
+  pct: number;
 }
 
 export interface StatsReport {
@@ -31,6 +48,10 @@ export interface StatsReport {
   orphans: string[];
   brokenLinks: Array<{ doc: string; target: string }>;
   mostConnected: Array<{ doc: string; degree: number }>;
+  /** Per-field metadata coverage, in report order. */
+  coverage: CoverageRow[];
+  /** Fields whose coverage is below their configured threshold. */
+  coverageFindings: Array<{ field: string; pct: number; threshold: number }>;
   exitCode: 0 | 1;
 }
 
@@ -100,6 +121,40 @@ export function runStats(opts: StatsOptions = {}): StatsReport {
     .sort((a, b) => b.degree - a.degree || (a.doc < b.doc ? -1 : 1))
     .slice(0, top);
 
+  // Coverage: one indexed scan per field over Document subjects. Measured
+  // against the graph, so git-derived values count (ADR 01008/01011). A
+  // zero-document graph is vacuously 100% — no divide-by-zero, no false gate.
+  const total = docIris.length;
+  const coverage: CoverageRow[] = COVERAGE_FIELDS.map(
+    ({ field, predicate, iri }) => {
+      let docs = 0;
+      for (const d of docIris) {
+        if (store.countQuads(namedNode(d), namedNode(iri), null, null) > 0)
+          docs++;
+      }
+      const pct = total === 0 ? 100 : Math.round((docs / total) * 1000) / 10;
+      return { field, predicate, docs, pct };
+    },
+  );
+
+  // A uniform --coverage-threshold overrides the resolved config map.
+  const thresholds =
+    opts.coverageThreshold != null
+      ? Object.fromEntries(
+          coverage.map((c) => [c.field, opts.coverageThreshold!]),
+        )
+      : config.stats.coverageThreshold;
+  const coverageFindings = coverage
+    .filter((c) => c.field in thresholds && c.pct < thresholds[c.field]!)
+    .map((c) => ({
+      field: c.field,
+      pct: c.pct,
+      threshold: thresholds[c.field]!,
+    }));
+
+  const failed =
+    !!opts.check && (brokenLinks.length > 0 || coverageFindings.length > 0);
+
   return {
     triples: store.size,
     docs: docIris.length,
@@ -120,7 +175,9 @@ export function runStats(opts: StatsOptions = {}): StatsReport {
     orphans,
     brokenLinks,
     mostConnected,
-    exitCode: opts.check && brokenLinks.length > 0 ? 1 : 0,
+    coverage,
+    coverageFindings,
+    exitCode: failed ? 1 : 0,
   };
 }
 
@@ -152,5 +209,15 @@ export function renderStats(
     lines.push(`  ${doc} -> ${target}`);
   }
   if (report.brokenLinks.length === 0) lines.push("  (none)");
+
+  const belowThreshold = new Set(report.coverageFindings.map((f) => f.field));
+  const width = Math.max(...report.coverage.map((c) => c.field.length));
+  lines.push("", "Coverage:");
+  for (const { field, docs, pct } of report.coverage) {
+    const flag = belowThreshold.has(field) ? "  ! below threshold" : "";
+    lines.push(
+      `  ${field.padEnd(width)}  ${docs}/${report.docs}  ${pct.toFixed(1)}%${flag}`,
+    );
+  }
   return lines.join("\n");
 }

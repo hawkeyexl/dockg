@@ -1,7 +1,10 @@
 import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { bundledSchemaPath } from "../../src/core/pkg.js";
 import { FIELD_SCHEMAS } from "../../src/llm/prompt.js";
+import { COVERAGE_FIELD_NAMES } from "../../src/core/coverage.js";
 
 /**
  * Drift guard: fill's proposal field schemas must stay a subset of the
@@ -39,5 +42,47 @@ describe("prompt FIELD_SCHEMAS ↔ bundled schema", () => {
     for (const field of Object.keys(FIELD_SCHEMAS)) {
       expect(allowed, `provenance enum is missing "${field}"`).toContain(field);
     }
+  });
+});
+
+/**
+ * Drift guard: the coverage field list and the config schema's per-field
+ * coverageThreshold map must name exactly the same fields, or a threshold set
+ * in config would silently gate nothing (or Ajv would reject a valid field).
+ */
+describe("COVERAGE_FIELD_NAMES ↔ config schema", () => {
+  const configSchema = JSON.parse(
+    readFileSync(
+      join(
+        dirname(fileURLToPath(import.meta.url)),
+        "..",
+        "..",
+        "src",
+        "core",
+        "config-schema.json",
+      ),
+      "utf8",
+    ),
+  ) as {
+    properties: {
+      stats: {
+        properties: {
+          coverageThreshold: {
+            anyOf: Array<{ properties?: Record<string, unknown> }>;
+          };
+        };
+      };
+    };
+  };
+
+  it("the per-field threshold map names exactly the measured fields", () => {
+    const mapForm =
+      configSchema.properties.stats.properties.coverageThreshold.anyOf.find(
+        (s) => s.properties,
+      );
+    expect(mapForm, "no object form in coverageThreshold anyOf").toBeDefined();
+    expect(Object.keys(mapForm!.properties!).sort()).toEqual(
+      [...COVERAGE_FIELD_NAMES].sort(),
+    );
   });
 });

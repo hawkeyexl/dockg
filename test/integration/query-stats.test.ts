@@ -1,5 +1,5 @@
-import { execFileSync } from "node:child_process";
-import { mkdtempSync } from "node:fs";
+import { execFileSync, spawnSync } from "node:child_process";
+import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -162,5 +162,112 @@ describe("dockg stats", () => {
   it("--check exits 1 when broken links exist", () => {
     const { status } = run(["stats", "--check", "-g", graph]);
     expect(status).toBe(1);
+  });
+});
+
+describe("dockg stats — metadata coverage", () => {
+  /** A clean one-doc corpus: no broken links, so --check isolates coverage. */
+  function scratch(frontmatter: string, config = ""): string {
+    const dir = mkdtempSync(join(tmpdir(), "dockg-cov-"));
+    writeFileSync(
+      join(dir, "dockg.config.yaml"),
+      `version: 1\ninputs: ["*.md"]\nprovenance:\n  git: false\n${config}`,
+    );
+    writeFileSync(join(dir, "a.md"), `${frontmatter}# A\n\nBody.\n`);
+    execFileSync(
+      process.execPath,
+      [cli, "build", "--out", join(dir, "g.ttl")],
+      {
+        encoding: "utf8",
+        cwd: dir,
+      },
+    );
+    return dir;
+  }
+
+  function statsIn(
+    dir: string,
+    args: string[],
+  ): { stdout: string; status: number } {
+    const r = spawnSync(
+      process.execPath,
+      [cli, "stats", "-g", join(dir, "g.ttl"), ...args],
+      { encoding: "utf8", cwd: dir },
+    );
+    return { stdout: r.stdout, status: r.status ?? -1 };
+  }
+
+  it("reports exact per-field coverage for the corpus", () => {
+    const { stdout, status } = run(["stats", "-f", "json", "-g", graph]);
+    expect(status).toBe(0);
+    const report = JSON.parse(stdout) as {
+      coverage: Array<{
+        field: string;
+        predicate: string;
+        docs: number;
+        pct: number;
+      }>;
+    };
+    // 4 docs: only getting-started.md carries description/creator/dates;
+    // configuration.md alone has a kg.prefLabel. Order is the report order.
+    expect(report.coverage).toEqual([
+      { field: "title", predicate: "dcterms:title", docs: 4, pct: 100 },
+      {
+        field: "description",
+        predicate: "dcterms:description",
+        docs: 1,
+        pct: 25,
+      },
+      { field: "creator", predicate: "dcterms:creator", docs: 1, pct: 25 },
+      { field: "created", predicate: "dcterms:created", docs: 1, pct: 25 },
+      { field: "modified", predicate: "dcterms:modified", docs: 1, pct: 25 },
+      { field: "subject", predicate: "dcterms:subject", docs: 2, pct: 50 },
+      { field: "prefLabel", predicate: "foaf:primaryTopic", docs: 1, pct: 25 },
+    ]);
+  });
+
+  it("renders a coverage block in pretty output", () => {
+    const { stdout } = run(["stats", "-g", graph]);
+    expect(stdout).toContain("Coverage");
+    expect(stdout).toMatch(/title\s+4\/4\s+100\.0%/);
+    expect(stdout).toMatch(/prefLabel\s+1\/4\s+25\.0%/);
+  });
+
+  it("--check gates on a uniform coverage threshold", () => {
+    const dir = scratch("");
+    // title comes from the H1 (100%), everything else is absent (0%).
+    expect(statsIn(dir, ["--check", "--coverage-threshold", "50"]).status).toBe(
+      1,
+    );
+    // A threshold only `title` clears still fails on the rest.
+    expect(
+      statsIn(dir, ["--check", "--coverage-threshold", "100"]).status,
+    ).toBe(1);
+    // No threshold: coverage never gates, and this corpus has no broken links.
+    expect(statsIn(dir, ["--check"]).status).toBe(0);
+  });
+
+  it("--check honors a per-field threshold map from config", () => {
+    // Gate only `title`, which the H1 satisfies; ignore the empty fields.
+    const pass = scratch("", "stats:\n  coverageThreshold:\n    title: 100\n");
+    expect(statsIn(pass, ["--check"]).status).toBe(0);
+
+    const fail = scratch(
+      "",
+      "stats:\n  coverageThreshold:\n    description: 1\n",
+    );
+    expect(statsIn(fail, ["--check"]).status).toBe(1);
+  });
+
+  it("counts git- and frontmatter-derived values alike", () => {
+    // description present -> 100% for a one-doc corpus.
+    const dir = scratch("---\ndescription: Hi.\n---\n\n");
+    const { stdout } = statsIn(dir, ["-f", "json"]);
+    const report = JSON.parse(stdout) as {
+      coverage: Array<{ field: string; pct: number }>;
+    };
+    expect(report.coverage.find((c) => c.field === "description")?.pct).toBe(
+      100,
+    );
   });
 });
