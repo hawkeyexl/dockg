@@ -25,7 +25,11 @@ describe("discoverFiles", () => {
 
   it("applies exclude patterns", () => {
     const dir = corpus();
-    const files = discoverFiles(["**/*.md"], ["**/node_modules/**", "**/sub/**"], dir);
+    const files = discoverFiles(
+      ["**/*.md"],
+      ["**/node_modules/**", "**/sub/**"],
+      dir,
+    );
     expect(files).toEqual(["docs/a.md", "docs/b.md"]);
   });
 

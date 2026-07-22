@@ -34,7 +34,13 @@ beforeAll(() => {
 
 describe("dockg query", () => {
   it("matches by predicate with a prefixed name", () => {
-    const { stdout, status } = run(["query", "-p", "dcterms:references", "-g", graph]);
+    const { stdout, status } = run([
+      "query",
+      "-p",
+      "dcterms:references",
+      "-g",
+      graph,
+    ]);
     expect(status).toBe(0);
     expect(stdout).toContain("dcterms:references");
     expect(stdout).toContain("configuration.md");
@@ -61,7 +67,13 @@ describe("dockg query", () => {
   });
 
   it("reports no matches cleanly", () => {
-    const { stdout, status } = run(["query", "-p", "dcterms:nonexistent", "-g", graph]);
+    const { stdout, status } = run([
+      "query",
+      "-p",
+      "dcterms:nonexistent",
+      "-g",
+      graph,
+    ]);
     expect(status).toBe(0);
     expect(stdout).toContain("No matches.");
   });
@@ -69,6 +81,49 @@ describe("dockg query", () => {
   it("exits 2 when the graph file is missing", () => {
     const { status } = run(["query", "-g", "nope/missing.ttl"]);
     expect(status).toBe(2);
+  });
+
+  // Result ordering is user-visible and was previously unpinned, which let a
+  // separator bug hide: the sort key joined fields with NUL, and any printable
+  // replacement (`|`) silently reorders results because it sorts *after* most
+  // characters instead of before. These two assertions fail under such a
+  // separator but pass for field-wise comparison.
+  it("orders matches by subject, then predicate, then object", () => {
+    const { stdout, status } = run(["query", "-f", "json", "-g", graph]);
+    expect(status).toBe(0);
+    const { matches } = JSON.parse(stdout) as {
+      matches: { s: string; p: string; o: { kind: string; value: string } }[];
+    };
+    expect(matches.length).toBeGreaterThan(0);
+
+    const by = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+    const expected = [...matches].sort(
+      (a, b) =>
+        by(a.s, b.s) ||
+        by(a.p, b.p) ||
+        by(a.o.kind, b.o.kind) ||
+        by(a.o.value, b.o.value),
+    );
+    expect(matches).toEqual(expected);
+  });
+
+  it("sorts a subject before one that extends it", () => {
+    const { stdout } = run(["query", "-f", "json", "-g", graph]);
+    const { matches } = JSON.parse(stdout) as { matches: { s: string }[] };
+
+    // configuration.md and its own section IRIs are the prefix pair that
+    // exposes a mis-ordering separator: the document must come first. The
+    // fragment prefix is derived from the matched subject rather than
+    // hardcoded, so this survives a change of corpus baseIri.
+    const doc = matches.findIndex((m) =>
+      m.s.endsWith("/docs/configuration.md"),
+    );
+    const docMatch = matches[doc];
+    if (!docMatch) throw new Error("configuration.md missing from matches");
+
+    const frag = matches.findIndex((m) => m.s.startsWith(`${docMatch.s}#`));
+    expect(frag).toBeGreaterThanOrEqual(0);
+    expect(doc).toBeLessThan(frag);
   });
 });
 
@@ -99,7 +154,9 @@ describe("dockg stats", () => {
     expect(report.brokenLinks).toEqual([
       { doc: "docs/no-frontmatter.md", target: "missing.md" },
     ]);
-    expect(report.mostConnected[0]).toMatchObject({ doc: "docs/configuration.md" });
+    expect(report.mostConnected[0]).toMatchObject({
+      doc: "docs/configuration.md",
+    });
   });
 
   it("--check exits 1 when broken links exist", () => {

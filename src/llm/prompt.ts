@@ -21,7 +21,8 @@ export const FIELD_SCHEMAS: Record<FillField, Record<string, unknown>> = {
     type: "array",
     items: { type: "string", minLength: 1 },
     uniqueItems: true,
-    description: "Alternative labels: synonyms, abbreviations, common variants.",
+    description:
+      "Alternative labels: synonyms, abbreviations, common variants.",
   },
   broader: {
     type: "array",
@@ -75,7 +76,8 @@ export function buildUserPrompt(
   fields: FillField[],
 ): string {
   const title =
-    (typeof doc.frontmatter["title"] === "string" && doc.frontmatter["title"]) ||
+    (typeof doc.frontmatter["title"] === "string" &&
+      doc.frontmatter["title"]) ||
     doc.firstH1 ||
     "(untitled)";
   const tags = doc.frontmatter["tags"] ?? doc.frontmatter["keywords"];
@@ -88,7 +90,9 @@ export function buildUserPrompt(
     "",
     `Path: ${doc.path}`,
     `Title: ${title}`,
-    Array.isArray(tags) && tags.length > 0 ? `Existing tags: ${tags.join(", ")}` : "",
+    Array.isArray(tags) && tags.length > 0
+      ? `Existing tags: ${tags.join(", ")}`
+      : "",
     "",
     "Heading outline:",
     outline || "(no headings)",

@@ -8,8 +8,14 @@
   "properties": {
     "version": { "const": 1 },
     "baseIri": { "type": "string", "minLength": 1 },
-    "inputs": { "type": "array", "items": { "type": "string", "minLength": 1 } },
-    "exclude": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "inputs": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "exclude": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
     "out": { "type": "string", "minLength": 1 },
     "routes": {
       "type": "array",
@@ -39,7 +45,15 @@
           "type": "array",
           "uniqueItems": true,
           "items": {
-            "enum": ["frontmatter", "sections", "links", "tags", "images", "code", "provenance"]
+            "enum": [
+              "frontmatter",
+              "sections",
+              "links",
+              "tags",
+              "images",
+              "code",
+              "provenance"
+            ]
           }
         }
       }
@@ -79,7 +93,14 @@
           "type": "array",
           "uniqueItems": true,
           "items": {
-            "enum": ["prefLabel", "altLabels", "broader", "narrower", "related", "subjects"]
+            "enum": [
+              "prefLabel",
+              "altLabels",
+              "broader",
+              "narrower",
+              "related",
+              "subjects"
+            ]
           }
         },
         "pricing": {

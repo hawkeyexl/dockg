@@ -213,6 +213,49 @@ fill:
   fields: [prefLabel, altLabels, related, subjects]
 ```
 
+## Contributing
+
+```bash
+npm install
+```
+
+Use `npm install`, not `npm ci`: the committed lock is generated on Windows and omits the Linux-side optional dependencies of rolldown's wasm binding, so a strict lock check can't pass on both platforms.
+
+### Quality gates
+
+Checks are layered by cost — fast ones on commit, the full loop on push, and everything again in CI, which is the authoritative gate.
+
+| Script | What it checks |
+|---|---|
+| `npm run format:check` / `npm run format` | Prettier formatting |
+| `npm run lint` / `npm run lint:fix` | ESLint |
+| `npm run typecheck` | `tsc --noEmit` |
+| `npm run build` | tsup bundle into `dist/` |
+| `npm test` | vitest, unit + integration |
+
+| Git hook | Runs |
+|---|---|
+| `pre-commit` | lint-staged (Prettier + ESLint on staged files), then `typecheck` |
+| `pre-push` | `typecheck`, `build`, `test` |
+| `commit-msg` | commitlint |
+
+Hooks are installed by husky on `npm install`. Build before test — the integration suite executes `dist/cli.js`, not `src/`.
+
+Prettier deliberately ignores `test/fixtures/` and `schemas/`: the corpus and golden graph are byte-exact regression baselines, and published frontmatter schemas are immutable once released. `.gitattributes` pins LF line endings everywhere except those byte-exact fixtures.
+
+### Commit messages
+
+[Conventional Commits](https://www.conventionalcommits.org/), enforced by the `commit-msg` hook and re-checked across the whole PR range in CI — hooks are bypassable, and semantic-release derives every version bump from these messages. Subjects must be lower-case: `feat: prov-o support`, not `feat: PROV-O support`.
+
+| Type | Release |
+|---|---|
+| `fix:` | patch |
+| `feat:` | minor |
+| `feat!:` or a `BREAKING CHANGE:` footer | major |
+| `chore:`, `docs:`, `ci:`, `style:`, `test:`, `refactor:`, `build:`, `perf:` | none |
+
+Releases are fully automated by semantic-release. Don't hand-edit `version` in `package.json`, create `v*` tags, or run `npm publish` locally.
+
 ## License
 
 MIT

@@ -5,11 +5,18 @@
 // published, and this guard goes quiet.
 import { readFileSync } from "node:fs";
 
-const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+const pkg = JSON.parse(
+  readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+);
 const offenders = [];
-for (const section of ["dependencies", "optionalDependencies", "peerDependencies"]) {
+for (const section of [
+  "dependencies",
+  "optionalDependencies",
+  "peerDependencies",
+]) {
   for (const [name, spec] of Object.entries(pkg[section] ?? {})) {
-    if (/^(file|link):/.test(spec)) offenders.push(`${section}.${name}: ${spec}`);
+    if (/^(file|link):/.test(spec))
+      offenders.push(`${section}.${name}: ${spec}`);
   }
 }
 if (offenders.length > 0) {

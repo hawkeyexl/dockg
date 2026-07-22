@@ -41,7 +41,10 @@ describe("dockg init", () => {
 describe("dockg fill --provider mock (CLI smoke)", () => {
   it("runs offline end-to-end without writing anything", () => {
     const dir = mkdtempSync(join(tmpdir(), "dockg-fillcli-"));
-    writeFileSync(join(dir, "dockg.config.yaml"), 'version: 1\ninputs: ["*.md"]\n');
+    writeFileSync(
+      join(dir, "dockg.config.yaml"),
+      'version: 1\ninputs: ["*.md"]\n',
+    );
     const doc = "---\ntitle: T\n---\n\n# T\n";
     writeFileSync(join(dir, "a.md"), doc);
     const { stdout, status } = run(

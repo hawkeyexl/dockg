@@ -118,7 +118,9 @@ const AGENT_KIND: Record<ProvAgentClass, AgentKind> = {
 };
 
 /** The `kg` sub-map of frontmatter, or undefined. */
-function kgObject(fm: Record<string, unknown>): Record<string, unknown> | undefined {
+function kgObject(
+  fm: Record<string, unknown>,
+): Record<string, unknown> | undefined {
   const kg = fm["kg"];
   return kg && typeof kg === "object" && !Array.isArray(kg)
     ? (kg as Record<string, unknown>)
@@ -136,7 +138,8 @@ function provenanceEntries(value: unknown): Array<Record<string, unknown>> {
         !!e && typeof e === "object" && !Array.isArray(e),
     );
   }
-  if (value && typeof value === "object") return [value as Record<string, unknown>];
+  if (value && typeof value === "object")
+    return [value as Record<string, unknown>];
   return [];
 }
 
@@ -179,7 +182,11 @@ export function deriveGraph(docs: DocModel[], options: DeriveOptions): Quad[] {
   // agents on one activity/doc never merge into a single node.
 
   /** doc ↔ author qualification: {docIri}#prov.attribution.{agentSlug}. */
-  const qualifyAttribution = (docIri: string, agentIri: string, name: string): void => {
+  const qualifyAttribution = (
+    docIri: string,
+    agentIri: string,
+    name: string,
+  ): void => {
     if (!qualified) return;
     const node = `${docIri}#prov.attribution.${conceptSlug(name)}`;
     add(docIri, `${NS.prov}qualifiedAttribution`, iri(node));
@@ -189,7 +196,11 @@ export function deriveGraph(docs: DocModel[], options: DeriveOptions): Quad[] {
   };
 
   /** activity ↔ agent qualification: {activityIri}.assoc.{agentSlug}. */
-  const qualifyAssociation = (activityIri: string, agentIri: string, role: string): void => {
+  const qualifyAssociation = (
+    activityIri: string,
+    agentIri: string,
+    role: string,
+  ): void => {
     if (!qualified) return;
     const agentSlug = agentIri.slice(agentIri.lastIndexOf("/") + 1);
     const node = `${activityIri}.assoc.${agentSlug}`;
@@ -218,7 +229,11 @@ export function deriveGraph(docs: DocModel[], options: DeriveOptions): Quad[] {
       add(docIri, predicate, iri(raw));
       return;
     }
-    const target = resolveProvDocPath(normalizeDocPath(doc.path), raw, docByPath);
+    const target = resolveProvDocPath(
+      normalizeDocPath(doc.path),
+      raw,
+      docByPath,
+    );
     if (target) {
       add(docIri, predicate, iri(mintDocIri(baseIri, target)));
     } else {
@@ -242,7 +257,8 @@ export function deriveGraph(docs: DocModel[], options: DeriveOptions): Quad[] {
       if (title) add(docIri, `${NS.dcterms}title`, lit(title));
 
       const description = asString(fmValue(fm, ["description"]));
-      if (description) add(docIri, `${NS.dcterms}description`, lit(description));
+      if (description)
+        add(docIri, `${NS.dcterms}description`, lit(description));
 
       for (const author of asStringArray(fmValue(fm, ["author", "authors"]))) {
         if (prov) {
@@ -259,7 +275,9 @@ export function deriveGraph(docs: DocModel[], options: DeriveOptions): Quad[] {
         createdEmitted = true;
       }
 
-      const modified = asString(fmValue(fm, ["updated", "lastmod", "modified"]));
+      const modified = asString(
+        fmValue(fm, ["updated", "lastmod", "modified"]),
+      );
       if (modified) {
         add(docIri, `${NS.dcterms}modified`, dateTerm(modified));
         modifiedEmitted = true;
@@ -306,8 +324,16 @@ export function deriveGraph(docs: DocModel[], options: DeriveOptions): Quad[] {
           : docIri;
         add(secIri, RDF_TYPE, iri(`${NS.dockg}Section`));
         add(secIri, `${NS.dcterms}title`, lit(section.title));
-        add(secIri, `${NS.dockg}level`, typedLit(String(section.level), `${NS.xsd}integer`));
-        add(secIri, `${NS.dockg}order`, typedLit(String(section.order), `${NS.xsd}integer`));
+        add(
+          secIri,
+          `${NS.dockg}level`,
+          typedLit(String(section.level), `${NS.xsd}integer`),
+        );
+        add(
+          secIri,
+          `${NS.dockg}order`,
+          typedLit(String(section.order), `${NS.xsd}integer`),
+        );
         add(parentIri, `${NS.dcterms}hasPart`, iri(secIri));
       }
     }
@@ -326,7 +352,11 @@ export function deriveGraph(docs: DocModel[], options: DeriveOptions): Quad[] {
           add(
             docIri,
             `${NS.dcterms}references`,
-            iri(anchorResolves ? mintSectionIri(targetIri, link.anchor!) : targetIri),
+            iri(
+              anchorResolves
+                ? mintSectionIri(targetIri, link.anchor!)
+                : targetIri,
+            ),
           );
         } else if (link.kind === "broken") {
           add(docIri, `${NS.dockg}brokenLink`, lit(link.raw));
@@ -389,7 +419,8 @@ export function deriveGraph(docs: DocModel[], options: DeriveOptions): Quad[] {
       // separator, which github-slugger can never produce — heading slugs
       // cannot collide with provenance fragments.
       const generatedBy =
-        (kg && asString(kg["generatedBy"])) ?? asString(fmValue(fm, ["generatedBy"]));
+        (kg && asString(kg["generatedBy"])) ??
+        asString(fmValue(fm, ["generatedBy"]));
       if (generatedBy) {
         const activity = `${docIri}#prov.generation`;
         const model = agentNode(generatedBy, "SoftwareAgent");
@@ -418,7 +449,11 @@ export function deriveGraph(docs: DocModel[], options: DeriveOptions): Quad[] {
         }
         const prefLabel = kg ? asString(kg["prefLabel"]) : undefined;
         if (prefLabel && filledFields.includes("prefLabel")) {
-          add(activity, `${NS.prov}generated`, iri(mintConceptIri(baseIri, prefLabel)));
+          add(
+            activity,
+            `${NS.prov}generated`,
+            iri(mintConceptIri(baseIri, prefLabel)),
+          );
         }
       }
     }
@@ -441,7 +476,11 @@ export function deriveGraph(docs: DocModel[], options: DeriveOptions): Quad[] {
     }
     const headTime = options.gitHistory?.headTime;
     if (headTime) {
-      add(activity, `${NS.prov}endedAtTime`, typedLit(headTime, `${NS.xsd}dateTime`));
+      add(
+        activity,
+        `${NS.prov}endedAtTime`,
+        typedLit(headTime, `${NS.xsd}dateTime`),
+      );
     }
   }
 

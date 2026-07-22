@@ -1,0 +1,4 @@
+# The full verification loop from CLAUDE.md. `build` must precede `test`:
+# the integration suite executes dist/cli.js, not src/, so testing without
+# rebuilding silently checks the previous build.
+npm run typecheck && npm run build && npm test

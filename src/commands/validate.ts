@@ -33,7 +33,8 @@ export async function runValidate(
 ): Promise<ValidateResult> {
   const cwd = opts.cwd ?? process.cwd();
   const config = loadConfig(opts.config, cwd);
-  const inputs = opts.globs && opts.globs.length > 0 ? opts.globs : config.inputs;
+  const inputs =
+    opts.globs && opts.globs.length > 0 ? opts.globs : config.inputs;
 
   // Discover with the SAME mechanism as `dockg build`, then hand docmeta the
   // explicit file list — validate must cover exactly the corpus build ingests
@@ -46,12 +47,16 @@ export async function runValidate(
     );
   }
   const supported = new Set(supportedExtensions());
-  const unsupported = files.filter((f) => !supported.has(extname(f).toLowerCase()));
+  const unsupported = files.filter(
+    (f) => !supported.has(extname(f).toLowerCase()),
+  );
   if (unsupported.length > 0) {
     throw new DockgError(
       `dockg build would ingest file types docmeta cannot validate: ${unsupported
         .slice(0, 5)
-        .join(", ")}${unsupported.length > 5 ? ", …" : ""} — narrow your inputs globs.`,
+        .join(
+          ", ",
+        )}${unsupported.length > 5 ? ", …" : ""} — narrow your inputs globs.`,
     );
   }
 

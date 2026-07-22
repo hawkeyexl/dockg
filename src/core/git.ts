@@ -62,10 +62,30 @@ export function unquoteGitPath(path: string): string {
       bytes.push(Number.parseInt(octal, 8));
     } else {
       const map: Record<string, string> = { n: "\n", t: "\t", r: "\r" };
-      for (const byte of Buffer.from(map[next] ?? next, "utf8")) bytes.push(byte);
+      for (const byte of Buffer.from(map[next] ?? next, "utf8"))
+        bytes.push(byte);
     }
   }
   return Buffer.from(bytes).toString("utf8");
+}
+
+/**
+ * Unset every inherited `GIT_*` variable for the child process.
+ *
+ * git exports GIT_DIR, GIT_INDEX_FILE, GIT_WORK_TREE and friends to the
+ * subprocesses it runs — every hook, and anything spawned from one. Inheriting
+ * them makes `git log` read *that* repository instead of `cwd`, so the same
+ * inputs would yield a different graph depending on who invoked dockg, and a
+ * build outside a repo would silently succeed against an unrelated one. Both
+ * break the determinism contract, so the ambient state is dropped wholesale
+ * rather than enumerated: git keeps adding variables to this namespace.
+ */
+function clearedGitEnv(): Record<string, string | undefined> {
+  const cleared: Record<string, string | undefined> = {};
+  for (const key of Object.keys(process.env)) {
+    if (key.startsWith("GIT_")) cleared[key] = undefined;
+  }
+  return cleared;
 }
 
 export async function collectGitHistory(
@@ -86,7 +106,7 @@ export async function collectGitHistory(
       // when the build runs in a subdirectory of the repo.
       "--relative",
     ],
-    { cwd, timeoutMs: 60000 },
+    { cwd, timeoutMs: 60000, env: clearedGitEnv() },
   );
   if (result.spawnError) {
     throw new DockgError(
@@ -160,7 +180,10 @@ export async function collectGitHistory(
       file.renamedFrom.push(normalizedOld);
       // Older commits refer to the pre-rename path; fold them into this file.
       const normalizedNew = normalizeDocPath(unquoteGitPath(newPath));
-      currentName.set(normalizedOld, currentName.get(normalizedNew) ?? normalizedNew);
+      currentName.set(
+        normalizedOld,
+        currentName.get(normalizedNew) ?? normalizedNew,
+      );
     } else {
       touch(rest);
     }

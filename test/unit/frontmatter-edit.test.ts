@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { applyKgFields, existingKgFields } from "../../src/core/frontmatter-edit.js";
+import {
+  applyKgFields,
+  existingKgFields,
+} from "../../src/core/frontmatter-edit.js";
 
 const BODY = "\n# Title\n\nBody text stays untouched.\n";
 

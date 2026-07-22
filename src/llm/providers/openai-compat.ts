@@ -79,7 +79,9 @@ function stripNulls(value: unknown): unknown {
     return value;
   }
   return Object.fromEntries(
-    Object.entries(value as Record<string, unknown>).filter(([, v]) => v !== null),
+    Object.entries(value as Record<string, unknown>).filter(
+      ([, v]) => v !== null,
+    ),
   );
 }
 
@@ -156,7 +158,10 @@ export class OpenAICompatProvider implements LlmProvider {
         const message = e instanceof Error ? e.message : String(e);
         // Fall back on schema/format complaints AND on opaque 400s (gateways
         // that reject response_format without a parseable error body).
-        if (!/response_format|json_schema|schema/i.test(message) && message !== "HTTP 400") {
+        if (
+          !/response_format|json_schema|schema/i.test(message) &&
+          message !== "HTTP 400"
+        ) {
           throw e;
         }
         this.supportsJsonSchema = false;

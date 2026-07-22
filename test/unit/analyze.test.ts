@@ -41,9 +41,27 @@ describe("analyzeDoc — headings", () => {
     expect(doc.firstH1).toBe("Title");
     expect(doc.sections).toEqual([
       { slug: "title", title: "Title", level: 1, order: 1, parentSlug: null },
-      { slug: "install", title: "Install", level: 2, order: 1, parentSlug: "title" },
-      { slug: "usage", title: "Usage", level: 2, order: 2, parentSlug: "title" },
-      { slug: "advanced", title: "Advanced", level: 3, order: 1, parentSlug: "usage" },
+      {
+        slug: "install",
+        title: "Install",
+        level: 2,
+        order: 1,
+        parentSlug: "title",
+      },
+      {
+        slug: "usage",
+        title: "Usage",
+        level: 2,
+        order: 2,
+        parentSlug: "title",
+      },
+      {
+        slug: "advanced",
+        title: "Advanced",
+        level: 3,
+        order: 1,
+        parentSlug: "usage",
+      },
     ]);
   });
 
@@ -59,8 +77,16 @@ describe("analyzeDoc — headings", () => {
 
   it("handles headings before any shallower heading (parent = doc)", () => {
     const doc = analyzeDoc("### Orphan\n\n# Later\n", "docs/intro.md", ALL);
-    expect(doc.sections[0]).toMatchObject({ slug: "orphan", parentSlug: null, order: 1 });
-    expect(doc.sections[1]).toMatchObject({ slug: "later", parentSlug: null, order: 2 });
+    expect(doc.sections[0]).toMatchObject({
+      slug: "orphan",
+      parentSlug: null,
+      order: 1,
+    });
+    expect(doc.sections[1]).toMatchObject({
+      slug: "later",
+      parentSlug: null,
+      order: 2,
+    });
   });
 });
 
@@ -73,7 +99,11 @@ describe("analyzeDoc — links", () => {
     );
     expect(doc.links).toEqual([
       { raw: "config.md", kind: "internal", resolvedPath: "docs/config.md" },
-      { raw: "https://example.com/x", kind: "external", url: "https://example.com/x" },
+      {
+        raw: "https://example.com/x",
+        kind: "external",
+        url: "https://example.com/x",
+      },
       { raw: "missing.md", kind: "broken" },
     ]);
   });
@@ -135,8 +165,16 @@ describe("analyzeDoc — links", () => {
       paths,
     );
     expect(doc.links).toEqual([
-      { raw: "custom", kind: "internal", resolvedPath: "docs/input-formats/custom.mdx" },
-      { raw: "../actions/", kind: "internal", resolvedPath: "docs/actions/index.md" },
+      {
+        raw: "custom",
+        kind: "internal",
+        resolvedPath: "docs/input-formats/custom.mdx",
+      },
+      {
+        raw: "../actions/",
+        kind: "internal",
+        resolvedPath: "docs/actions/index.md",
+      },
       {
         raw: "../actions/find#usage",
         kind: "internal",
@@ -191,22 +229,46 @@ describe("analyzeDoc — route mapping", () => {
       { routes },
     );
     expect(doc.links).toEqual([
-      { raw: "/docs/actions/find", kind: "internal", resolvedPath: "docs/pages/actions/find.mdx" },
-      { raw: "/docs/intro", kind: "internal", resolvedPath: "docs/pages/intro.md" },
+      {
+        raw: "/docs/actions/find",
+        kind: "internal",
+        resolvedPath: "docs/pages/actions/find.mdx",
+      },
+      {
+        raw: "/docs/intro",
+        kind: "internal",
+        resolvedPath: "docs/pages/intro.md",
+      },
     ]);
   });
 
   it("falls back to extension candidates for trailing-slash pretty URLs", () => {
     // Hugo/Docusaurus serve find.mdx at /docs/actions/find/ — no index file exists
-    const doc = analyzeDoc("[pretty](/docs/actions/find/)\n", "docs/linker.md", paths, {
-      routes,
-    });
+    const doc = analyzeDoc(
+      "[pretty](/docs/actions/find/)\n",
+      "docs/linker.md",
+      paths,
+      {
+        routes,
+      },
+    );
     expect(doc.links).toEqual([
-      { raw: "/docs/actions/find/", kind: "internal", resolvedPath: "docs/pages/actions/find.mdx" },
+      {
+        raw: "/docs/actions/find/",
+        kind: "internal",
+        resolvedPath: "docs/pages/actions/find.mdx",
+      },
     ]);
     // ...but index files still win when both exist
-    const dirDoc = analyzeDoc("[dir](/docs/actions/)\n", "docs/linker.md", paths, { routes });
-    expect(dirDoc.links[0]).toMatchObject({ resolvedPath: "docs/pages/actions/index.mdx" });
+    const dirDoc = analyzeDoc(
+      "[dir](/docs/actions/)\n",
+      "docs/linker.md",
+      paths,
+      { routes },
+    );
+    expect(dirDoc.links[0]).toMatchObject({
+      resolvedPath: "docs/pages/actions/index.mdx",
+    });
   });
 
   it("resolves directory routes (trailing slash) via index files, and keeps anchors", () => {
@@ -228,14 +290,23 @@ describe("analyzeDoc — route mapping", () => {
   });
 
   it("marks unresolvable routes under a mapped basePath as broken", () => {
-    const doc = analyzeDoc("[gone](/docs/actions/missing)\n", "docs/linker.md", paths, {
-      routes,
-    });
-    expect(doc.links).toEqual([{ raw: "/docs/actions/missing", kind: "broken" }]);
+    const doc = analyzeDoc(
+      "[gone](/docs/actions/missing)\n",
+      "docs/linker.md",
+      paths,
+      {
+        routes,
+      },
+    );
+    expect(doc.links).toEqual([
+      { raw: "/docs/actions/missing", kind: "broken" },
+    ]);
   });
 
   it("still skips root-absolute links outside every mapped basePath", () => {
-    const doc = analyzeDoc("[other](/blog/post)\n", "docs/linker.md", paths, { routes });
+    const doc = analyzeDoc("[other](/blog/post)\n", "docs/linker.md", paths, {
+      routes,
+    });
     expect(doc.links).toEqual([]);
   });
 
@@ -252,8 +323,16 @@ describe("analyzeDoc — route mapping", () => {
       { routes },
     );
     expect(doc.links).toEqual([
-      { raw: "/docs/actions/closesurface", kind: "internal", resolvedPath: "docs/pages/actions/closeSurface.mdx" },
-      { raw: "/docs/actions/stop-record", kind: "internal", resolvedPath: "docs/pages/actions/stopRecord.mdx" },
+      {
+        raw: "/docs/actions/closesurface",
+        kind: "internal",
+        resolvedPath: "docs/pages/actions/closeSurface.mdx",
+      },
+      {
+        raw: "/docs/actions/stop-record",
+        kind: "internal",
+        resolvedPath: "docs/pages/actions/stopRecord.mdx",
+      },
     ]);
   });
 
@@ -280,11 +359,20 @@ describe("analyzeDoc — route mapping", () => {
       "docs/pages/guide/index.mdx",
       "docs/linker.md",
     ]);
-    const doc = analyzeDoc("[dir](/docs/guide/) [page](/docs/guide)\n", "docs/linker.md", both, {
-      routes,
+    const doc = analyzeDoc(
+      "[dir](/docs/guide/) [page](/docs/guide)\n",
+      "docs/linker.md",
+      both,
+      {
+        routes,
+      },
+    );
+    expect(doc.links[0]).toMatchObject({
+      resolvedPath: "docs/pages/guide/index.mdx",
     });
-    expect(doc.links[0]).toMatchObject({ resolvedPath: "docs/pages/guide/index.mdx" });
-    expect(doc.links[1]).toMatchObject({ resolvedPath: "docs/pages/guide.mdx" });
+    expect(doc.links[1]).toMatchObject({
+      resolvedPath: "docs/pages/guide.mdx",
+    });
   });
 
   it("resolves the bare basePath itself to the root index", () => {
@@ -292,7 +380,11 @@ describe("analyzeDoc — route mapping", () => {
       routes: [{ ...routes[0]!, root: "docs/pages/actions" }],
     });
     expect(doc.links).toEqual([
-      { raw: "/docs", kind: "internal", resolvedPath: "docs/pages/actions/index.mdx" },
+      {
+        raw: "/docs",
+        kind: "internal",
+        resolvedPath: "docs/pages/actions/index.mdx",
+      },
     ]);
   });
 });
@@ -306,7 +398,11 @@ describe("analyzeDoc — images and code", () => {
     );
     expect(doc.images).toEqual([
       { raw: "img/a.png", target: "docs/img/a.png", external: false },
-      { raw: "https://example.com/b.png", target: "https://example.com/b.png", external: true },
+      {
+        raw: "https://example.com/b.png",
+        target: "https://example.com/b.png",
+        external: true,
+      },
     ]);
   });
 

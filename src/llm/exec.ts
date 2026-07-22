@@ -5,6 +5,23 @@
 import spawn from "cross-spawn";
 import type { ExecFn, ExecResult } from "./types.js";
 
+/**
+ * Merge overrides onto the ambient environment, treating an explicit
+ * `undefined` as "unset this variable". Callers need that to neutralize
+ * inherited state they must not see — notably git's GIT_DIR/GIT_INDEX_FILE,
+ * which git exports to every hook subprocess and which would otherwise
+ * redirect a child `git` away from the cwd it was given.
+ */
+function buildEnv(
+  overrides: Record<string, string | undefined> = {},
+): Record<string, string> {
+  const merged: Record<string, string> = {};
+  for (const [key, value] of Object.entries({ ...process.env, ...overrides })) {
+    if (value !== undefined) merged[key] = value;
+  }
+  return merged;
+}
+
 export const realExec: ExecFn = (cmd, opts = {}) => {
   const [bin, ...args] = cmd;
   if (!bin) {
@@ -19,7 +36,7 @@ export const realExec: ExecFn = (cmd, opts = {}) => {
   return new Promise<ExecResult>((resolvePromise) => {
     const child = spawn(bin, args, {
       cwd: opts.cwd,
-      env: { ...process.env, ...(opts.env ?? {}) },
+      env: buildEnv(opts.env),
       stdio: ["ignore", "pipe", "pipe"],
     });
 

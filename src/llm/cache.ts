@@ -50,6 +50,9 @@ export class FillCache {
   set(key: string, proposal: Record<string, unknown>): void {
     if (!this.enabled) return;
     mkdirSync(this.dir, { recursive: true });
-    writeFileSync(join(this.dir, `${key}.json`), JSON.stringify(proposal, null, 2));
+    writeFileSync(
+      join(this.dir, `${key}.json`),
+      JSON.stringify(proposal, null, 2),
+    );
   }
 }

@@ -46,7 +46,11 @@ program
   .option("-o, --out <path>", "Output .ttl path (default: config out)")
   .action(async (globs: string[], opts: { config?: string; out?: string }) => {
     try {
-      const result = await runBuild({ globs, config: opts.config, out: opts.out });
+      const result = await runBuild({
+        globs,
+        config: opts.config,
+        out: opts.out,
+      });
       console.log(
         `Wrote ${result.outPath} (${result.docs} docs, ${result.quads} triples)`,
       );
@@ -61,19 +65,23 @@ program
   .argument("[globs...]", "Input globs (default: config inputs)")
   .option("-c, --config <path>", "Path to dockg.config.yaml")
   .option("-f, --format <format>", "Output format: pretty | json", "pretty")
-  .action(async (globs: string[], opts: { config?: string; format: string }) => {
-    try {
-      const result = await runValidate({ globs, config: opts.config });
-      console.log(renderValidate(result, opts.format as "pretty" | "json"));
-      process.exitCode = result.exitCode;
-    } catch (e) {
-      fail(e);
-    }
-  });
+  .action(
+    async (globs: string[], opts: { config?: string; format: string }) => {
+      try {
+        const result = await runValidate({ globs, config: opts.config });
+        console.log(renderValidate(result, opts.format as "pretty" | "json"));
+        process.exitCode = result.exitCode;
+      } catch (e) {
+        fail(e);
+      }
+    },
+  );
 
 program
   .command("fill")
-  .description("Propose SKOS `kg:` frontmatter fields with an LLM and write them back")
+  .description(
+    "Propose SKOS `kg:` frontmatter fields with an LLM and write them back",
+  )
   .argument("[globs...]", "Input globs (default: config inputs)")
   .option("-c, --config <path>", "Path to dockg.config.yaml")
   .option("-f, --format <format>", "Output format: pretty | json", "pretty")
@@ -83,7 +91,10 @@ program
   .option("--max-cost <usd>", "Stop proposing past this cost", (v) =>
     Number.parseFloat(v),
   )
-  .option("--provider <name>", "Provider: anthropic | openai | claude-cli | mock")
+  .option(
+    "--provider <name>",
+    "Provider: anthropic | openai | claude-cli | mock",
+  )
   .option("--model <model>", "Model override")
   .action(async (globs: string[], opts: Record<string, unknown>) => {
     try {
@@ -106,28 +117,32 @@ program
 
 program
   .command("query")
-  .description("Match triple patterns against the built graph (omit a term for wildcard)")
+  .description(
+    "Match triple patterns against the built graph (omit a term for wildcard)",
+  )
   .option("-s, --s <term>", "Subject IRI or prefixed name")
   .option("-p, --p <term>", "Predicate IRI or prefixed name")
   .option("-o, --o <term>", "Object IRI, prefixed name, or literal value")
   .option("-c, --config <path>", "Path to dockg.config.yaml")
   .option("-g, --graph <path>", "Graph .ttl path (default: config out)")
   .option("-f, --format <format>", "Output format: pretty | json", "pretty")
-  .action((opts: {
-    s?: string;
-    p?: string;
-    o?: string;
-    config?: string;
-    graph?: string;
-    format: string;
-  }) => {
-    try {
-      const result = runQuery(opts);
-      console.log(renderQuery(result, opts.format as "pretty" | "json"));
-    } catch (e) {
-      fail(e);
-    }
-  });
+  .action(
+    (opts: {
+      s?: string;
+      p?: string;
+      o?: string;
+      config?: string;
+      graph?: string;
+      format: string;
+    }) => {
+      try {
+        const result = runQuery(opts);
+        console.log(renderQuery(result, opts.format as "pretty" | "json"));
+      } catch (e) {
+        fail(e);
+      }
+    },
+  );
 
 program
   .command("stats")
@@ -139,20 +154,22 @@ program
   .option("--top <n>", "How many most-connected docs to list", (v) =>
     Number.parseInt(v, 10),
   )
-  .action((opts: {
-    config?: string;
-    graph?: string;
-    format: string;
-    check?: boolean;
-    top?: number;
-  }) => {
-    try {
-      const report = runStats(opts);
-      console.log(renderStats(report, opts.format as "pretty" | "json"));
-      process.exitCode = report.exitCode;
-    } catch (e) {
-      fail(e);
-    }
-  });
+  .action(
+    (opts: {
+      config?: string;
+      graph?: string;
+      format: string;
+      check?: boolean;
+      top?: number;
+    }) => {
+      try {
+        const report = runStats(opts);
+        console.log(renderStats(report, opts.format as "pretty" | "json"));
+        process.exitCode = report.exitCode;
+      } catch (e) {
+        fail(e);
+      }
+    },
+  );
 
 program.parse();
