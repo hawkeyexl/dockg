@@ -28,6 +28,12 @@ export interface BuildResult {
   outPath: string;
   docs: number;
   quads: number;
+  /**
+   * Non-fatal diagnostics: the build succeeded, but something it would have
+   * done by default could not run (see ADR 01010). Rendered to stderr by the
+   * CLI; never affects the exit code.
+   */
+  warnings: string[];
 }
 
 export async function runBuild(opts: BuildOptions = {}): Promise<BuildResult> {
@@ -50,16 +56,34 @@ export async function runBuild(opts: BuildOptions = {}): Promise<BuildResult> {
     }),
   );
 
+  const warnings: string[] = [];
+  // The git pass only feeds the provenance derive source — skip the subprocess
+  // entirely when that source, or provenance.git itself, is off. Under "auto"
+  // an unavailable git degrades to a warning; under `true` the user demanded
+  // it, so failing to honor that is an operational error (ADR 01010).
+  let gitHistory: Awaited<ReturnType<typeof collectGitHistory>> | undefined;
+  if (
+    config.provenance.git !== false &&
+    config.build.derive.includes("provenance")
+  ) {
+    try {
+      gitHistory = await collectGitHistory(cwd);
+    } catch (e) {
+      const detail = e instanceof Error ? e.message : String(e);
+      if (config.provenance.git === true) {
+        throw new DockgError(`provenance.git is true but ${detail}`);
+      }
+      warnings.push(
+        `provenance.git is "auto" and ${detail} — continuing without git-derived provenance`,
+      );
+    }
+  }
+
   const quads = deriveGraph(docs, {
     baseIri: config.baseIri,
     derive: config.build.derive,
     toolVersion: toolVersion(import.meta.url),
-    // The git pass only feeds the provenance derive source — skip the
-    // subprocess entirely when that source is disabled.
-    gitHistory:
-      config.provenance.git && config.build.derive.includes("provenance")
-        ? await collectGitHistory(cwd)
-        : undefined,
+    gitHistory,
     qualified: config.provenance.qualified,
   });
   const turtle = emitTurtle(quads);
@@ -68,5 +92,5 @@ export async function runBuild(opts: BuildOptions = {}): Promise<BuildResult> {
   mkdirSync(dirname(outPath), { recursive: true });
   writeFileSync(outPath, turtle, "utf8");
 
-  return { outPath, docs: docs.length, quads: quads.length };
+  return { outPath, docs: docs.length, quads: quads.length, warnings };
 }

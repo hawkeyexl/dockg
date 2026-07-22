@@ -26,9 +26,10 @@ describe("parseConfig", () => {
     // empty = use the shapes bundled with dockg (shapes/dockg-0.1.ttl)
     expect(c.check.shapes).toEqual([]);
     expect(c.fill.validateGraph).toBe(true);
-    expect(c.provenance).toEqual({ git: false, qualified: false });
+    // Opinionated defaults (ADR 01009/01010): hermetic provenance ships on;
+    // "auto" runs git where it can and degrades with a warning where it can't.
+    expect(c.provenance).toEqual({ git: "auto", qualified: true });
     expect(c.fill.writeProvenance).toBe(true);
-    expect(c.provenance).toEqual({ git: false, qualified: false });
     expect(c.fill.provider).toBe("anthropic");
     expect(c.fill.temperature).toBe(0);
     expect(c.fill.maxCostUsd).toBe(5);
@@ -133,6 +134,22 @@ describe("parseConfig", () => {
     expect(() =>
       parseConfig(
         "version: 1\nprovenance:\n  gitTime: true\n",
+        "/tmp/dockg.config.yaml",
+      ),
+    ).toThrow(DockgError);
+  });
+
+  it("parses all three provenance.git modes and rejects other strings", () => {
+    for (const mode of ["auto", true, false] as const) {
+      const c = parseConfig(
+        `version: 1\nprovenance:\n  git: ${JSON.stringify(mode)}\n`,
+        "/tmp/dockg.config.yaml",
+      );
+      expect(c.provenance.git).toBe(mode);
+    }
+    expect(() =>
+      parseConfig(
+        "version: 1\nprovenance:\n  git: maybe\n",
         "/tmp/dockg.config.yaml",
       ),
     ).toThrow(DockgError);

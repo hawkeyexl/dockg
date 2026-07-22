@@ -108,20 +108,23 @@ export async function collectGitHistory(
     ],
     { cwd, timeoutMs: 60000, env: clearedGitEnv() },
   );
+  // Messages stay neutral about *why* git provenance was requested; the caller
+  // knows whether it was demanded (`provenance.git: true`) or inherited
+  // (`"auto"`) and frames the failure as an error or a warning accordingly.
   if (result.spawnError) {
     throw new DockgError(
-      `provenance.git is enabled but git could not be run: ${result.spawnError} (is git installed and on PATH?)`,
+      `git could not be run: ${result.spawnError} (is git installed and on PATH?)`,
     );
   }
   if (result.timedOut) {
     throw new DockgError(
-      "provenance.git is enabled but `git log` timed out after 60s — the repo history may be too large for whole-history provenance",
+      "`git log` timed out after 60s — the repo history may be too large for whole-history provenance",
     );
   }
   if (result.code !== 0 || result.stdout.trim() === "") {
     const detail = result.stderr.trim().slice(-300);
     throw new DockgError(
-      `provenance.git is enabled but git history could not be read (is ${cwd} a git repo with at least one commit?)${detail ? ` — git said: ${detail}` : ""}`,
+      `git history could not be read (is ${cwd} a git repo with at least one commit?)${detail ? ` — git said: ${detail}` : ""}`,
     );
   }
 

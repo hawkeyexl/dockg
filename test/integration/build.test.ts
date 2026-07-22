@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -48,7 +48,8 @@ describe("dockg build (integration)", () => {
       readFileSync(golden, "utf8"),
     );
     // must equal the triple count `build` reports for the corpus
-    expect(quads.length).toBe(113);
+    // (113 + 8 qualified-provenance triples once that default flipped on)
+    expect(quads.length).toBe(121);
   });
 
   it("reports docs and triples on stdout", () => {
@@ -182,6 +183,69 @@ describe("dockg build (integration)", () => {
     const a = readFileSync(join(dir, "a.ttl"), "utf8");
     expect(a).toBe(readFileSync(join(dir, "b.ttl"), "utf8"));
     expect(a).toMatch(/prov:endedAtTime "[^"]+"\^\^xsd:dateTime/);
+  });
+
+  it("provenance.git 'auto' (the default) degrades outside a git repo", () => {
+    const dir = mkdtempSync(join(tmpdir(), "dockg-gitauto-"));
+    // No provenance key at all: the default must apply.
+    writeFileSync(
+      join(dir, "dockg.config.yaml"),
+      'version: 1\ninputs: ["*.md"]\n',
+    );
+    writeFileSync(join(dir, "a.md"), "# A\n");
+
+    const out = join(dir, "g.ttl");
+    const r = spawnSync(process.execPath, [cli, "build", "--out", out], {
+      encoding: "utf8",
+      cwd: dir,
+      env: hermeticEnv(),
+    });
+
+    // Degrades: build succeeds, warns on stderr, and emits no git-derived time.
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain("Wrote");
+    expect(r.stderr).toMatch(/provenance\.git/);
+    expect(readFileSync(out, "utf8")).not.toMatch(/prov:endedAtTime/);
+
+    // Same directory, now a repo: the same default derives git provenance
+    // silently. hermeticEnv keeps an ambient GIT_DIR from redirecting this.
+    const env = hermeticEnv();
+    execFileSync("git", ["init", "-q"], { cwd: dir, env });
+    execFileSync(
+      "git",
+      ["-c", "user.email=t@t", "-c", "user.name=t", "add", "-A"],
+      { cwd: dir, env },
+    );
+    execFileSync(
+      "git",
+      ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "i"],
+      { cwd: dir, env },
+    );
+    const inRepo = spawnSync(process.execPath, [cli, "build", "--out", out], {
+      encoding: "utf8",
+      cwd: dir,
+      env,
+    });
+    expect(inRepo.status).toBe(0);
+    expect(inRepo.stderr).toBe("");
+    expect(readFileSync(out, "utf8")).toMatch(/prov:endedAtTime/);
+  });
+
+  it("provenance.git false stays silent and skips git entirely", () => {
+    const dir = mkdtempSync(join(tmpdir(), "dockg-gitoff-"));
+    writeFileSync(
+      join(dir, "dockg.config.yaml"),
+      'version: 1\ninputs: ["*.md"]\nprovenance:\n  git: false\n',
+    );
+    writeFileSync(join(dir, "a.md"), "# A\n");
+
+    const r = spawnSync(
+      process.execPath,
+      [cli, "build", "--out", join(dir, "g.ttl")],
+      { encoding: "utf8", cwd: dir, env: hermeticEnv() },
+    );
+    expect(r.status).toBe(0);
+    expect(r.stderr).toBe("");
   });
 
   it("exits 2 when no inputs match", () => {

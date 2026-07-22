@@ -22,6 +22,12 @@ export type DeriveSource =
   | "code"
   | "provenance";
 
+/**
+ * How hard `provenance.git` insists: derive-where-possible (`"auto"`),
+ * required (`true`), or off (`false`). See ADR 01010.
+ */
+export type GitMode = boolean | "auto";
+
 export type FillField =
   "prefLabel" | "altLabels" | "broader" | "narrower" | "related" | "subjects";
 
@@ -63,8 +69,12 @@ export interface DockgConfig {
      * Gate for ALL git-derived provenance: per-file dates/authors, rename →
      * prov:wasRevisionOf edges, and the build activity's prov:endedAtTime
      * (HEAD committer date). Deterministic per commit; never the wall clock.
+     *
+     * `"auto"` (default) derives it wherever git can run and degrades with a
+     * warning where it cannot; `true` requires it, so an unavailable git is an
+     * operational error; `false` skips the subprocess entirely.
      */
-    git: boolean;
+    git: GitMode;
     /** Emit qualified attribution/association nodes with roles. */
     qualified: boolean;
   };
@@ -178,8 +188,8 @@ export function parseConfig(text: string, configPath: string): DockgConfig {
       shapes: r.check?.shapes ?? [],
     },
     provenance: {
-      git: r.provenance?.git ?? false,
-      qualified: r.provenance?.qualified ?? false,
+      git: r.provenance?.git ?? "auto",
+      qualified: r.provenance?.qualified ?? true,
     },
     fill: {
       provider: r.fill?.provider ?? "anthropic",

@@ -82,7 +82,7 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "git": { "type": "boolean" },
+        "git": { "anyOf": [{ "type": "boolean" }, { "const": "auto" }] },
         "qualified": { "type": "boolean" }
       }
     },
