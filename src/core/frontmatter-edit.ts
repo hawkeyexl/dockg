@@ -24,7 +24,9 @@ interface Split {
  * and JSON (;;;) fences too, but only YAML is editable in place — callers
  * must not treat "unsupported" as "absent" or they will stack a second block.
  */
-export function frontmatterKind(content: string): "yaml" | "unsupported" | "none" {
+export function frontmatterKind(
+  content: string,
+): "yaml" | "unsupported" | "none" {
   const body = content.charCodeAt(0) === 0xfeff ? content.slice(1) : content;
   if (/^---(\r?\n)/.test(body)) return "yaml";
   if (/^(\+\+\+|;;;)(\r?\n)/.test(body)) return "unsupported";
@@ -74,7 +76,12 @@ function flowSeqs(node: unknown): void {
 }
 
 /** Set `value` on the kg map; arrays (incl. nested) render flow-style. */
-function setField(doc: Document, kg: YAMLMap, field: string, value: unknown): void {
+function setField(
+  doc: Document,
+  kg: YAMLMap,
+  field: string,
+  value: unknown,
+): void {
   const node = doc.createNode(value);
   flowSeqs(node);
   kg.set(field, node);
@@ -92,7 +99,8 @@ export function applyKgFields(
   options: { force?: boolean; alwaysOverwrite?: string[] } = {},
 ): KgApplyResult {
   const entries = Object.entries(values).filter(
-    ([, v]) => v !== undefined && v !== null && !(Array.isArray(v) && v.length === 0),
+    ([, v]) =>
+      v !== undefined && v !== null && !(Array.isArray(v) && v.length === 0),
   );
   if (entries.length === 0) return { content, applied: [], skipped: [] };
 
@@ -172,7 +180,8 @@ export function existingProvenance(content: string): ProvenanceEntry[] {
   if (split === null) return [];
   const doc = parseDocument(split.block);
   if (doc.errors.length > 0) return [];
-  const plain = (doc.toJS() as { kg?: { provenance?: unknown } } | null)?.kg?.provenance;
+  const plain = (doc.toJS() as { kg?: { provenance?: unknown } } | null)?.kg
+    ?.provenance;
   const raw = Array.isArray(plain) ? plain : plain ? [plain] : [];
   const entries: ProvenanceEntry[] = [];
   for (const item of raw) {

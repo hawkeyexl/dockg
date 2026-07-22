@@ -18,8 +18,12 @@ describe("resolveBaseIri", () => {
   });
 
   it("appends a trailing slash to http(s) bases missing one", () => {
-    expect(resolveBaseIri("https://example.com/kg")).toBe("https://example.com/kg/");
-    expect(resolveBaseIri("https://example.com/kg/")).toBe("https://example.com/kg/");
+    expect(resolveBaseIri("https://example.com/kg")).toBe(
+      "https://example.com/kg/",
+    );
+    expect(resolveBaseIri("https://example.com/kg/")).toBe(
+      "https://example.com/kg/",
+    );
   });
 
   it("leaves urn-style bases ending in ':' untouched", () => {
@@ -29,7 +33,9 @@ describe("resolveBaseIri", () => {
 
 describe("normalizeDocPath", () => {
   it("converts backslashes to forward slashes", () => {
-    expect(normalizeDocPath("docs\\guide\\intro.md")).toBe("docs/guide/intro.md");
+    expect(normalizeDocPath("docs\\guide\\intro.md")).toBe(
+      "docs/guide/intro.md",
+    );
   });
 
   it("strips a leading ./", () => {
@@ -79,9 +85,9 @@ describe("mintDocIri", () => {
 
 describe("mintSectionIri", () => {
   it("appends the slug as a fragment", () => {
-    expect(mintSectionIri("https://example.com/kg/doc/docs/intro.md", "install")).toBe(
-      "https://example.com/kg/doc/docs/intro.md#install",
-    );
+    expect(
+      mintSectionIri("https://example.com/kg/doc/docs/intro.md", "install"),
+    ).toBe("https://example.com/kg/doc/docs/intro.md#install");
   });
 });
 
@@ -127,7 +133,9 @@ describe("provenance IRIs", () => {
   });
 
   it("mints the graph and build-activity nodes", () => {
-    expect(mintGraphIri("https://example.com/kg/")).toBe("https://example.com/kg/graph");
+    expect(mintGraphIri("https://example.com/kg/")).toBe(
+      "https://example.com/kg/graph",
+    );
     expect(mintBuildActivityIri("https://example.com/kg/")).toBe(
       "https://example.com/kg/activity/build",
     );
@@ -136,6 +144,8 @@ describe("provenance IRIs", () => {
 
 describe("mintSchemeIri", () => {
   it("mints the scheme node", () => {
-    expect(mintSchemeIri("https://example.com/kg/")).toBe("https://example.com/kg/scheme");
+    expect(mintSchemeIri("https://example.com/kg/")).toBe(
+      "https://example.com/kg/scheme",
+    );
   });
 });

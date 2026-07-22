@@ -77,7 +77,12 @@ describe("runFill", () => {
     // huge usage so the first call exceeds any budget; model name must be
     // priced in the cost table for the budget to accrue
     const provider = new MockProvider(
-      [{ json: PROPOSAL, usage: { inputTokens: 10_000_000, outputTokens: 1_000_000 } }],
+      [
+        {
+          json: PROPOSAL,
+          usage: { inputTokens: 10_000_000, outputTokens: 1_000_000 },
+        },
+      ],
       "claude-sonnet-4-5",
     );
     const report = await runFill({
@@ -114,7 +119,9 @@ describe("runFill", () => {
     const written = readFileSync(join(dir, "a.md"), "utf8");
     expect(written).toContain("provenance:");
     expect(written).toContain("generatedBy: test-model");
-    expect(written).toMatch(/fields: \[ altLabels, prefLabel, related, subjects \]/);
+    expect(written).toMatch(
+      /fields: \[ altLabels, prefLabel, related, subjects \]/,
+    );
     expect(written.endsWith("# T\n")).toBe(true); // body still byte-preserved
     // provenance is metadata, not a reported filled field
     expect(report.results[0]?.fields).not.toContain("provenance");
@@ -176,12 +183,10 @@ describe("runFill", () => {
   });
 
   it("does not treat an existing provenance entry as a fillable field", async () => {
-    const dir = setup(
-      {
-        "a.md":
-          "---\nkg:\n  prefLabel: X\n  altLabels: [y]\n  related: [z]\n  subjects: [s]\n  provenance:\n    generatedBy: old\n    fields: [prefLabel]\n---\n",
-      },
-    );
+    const dir = setup({
+      "a.md":
+        "---\nkg:\n  prefLabel: X\n  altLabels: [y]\n  related: [z]\n  subjects: [s]\n  provenance:\n    generatedBy: old\n    fields: [prefLabel]\n---\n",
+    });
     const provider = new MockProvider([{ json: PROPOSAL }]);
     const report = await runFill({ cwd: dir, providerInstance: provider });
     expect(report.results[0]).toMatchObject({ status: "complete" });
@@ -212,7 +217,9 @@ describe("runFill", () => {
     });
     const provider = new MockProvider([{ json: PROPOSAL }]);
     const report = await runFill({ cwd: dir, providerInstance: provider });
-    const statuses = Object.fromEntries(report.results.map((r) => [r.path, r.status]));
+    const statuses = Object.fromEntries(
+      report.results.map((r) => [r.path, r.status]),
+    );
     expect(statuses["a.md"]).toBe("error");
     expect(statuses["b.md"]).toBe("error");
     expect(statuses["c.md"]).toBe("filled");
@@ -239,9 +246,16 @@ describe("runFill", () => {
     const entry = readdirSync(cacheDir)[0]!;
     write(join(cacheDir, entry), JSON.stringify({ prefLabel: 42 }));
     const second = new MockProvider([{ json: PROPOSAL }]);
-    const report = await runFill({ cwd: dir, providerInstance: second, dryRun: true });
+    const report = await runFill({
+      cwd: dir,
+      providerInstance: second,
+      dryRun: true,
+    });
     expect(second.requests).toHaveLength(1); // cache invalid -> re-asked
-    expect(report.results[0]).toMatchObject({ status: "proposed", cached: false });
+    expect(report.results[0]).toMatchObject({
+      status: "proposed",
+      cached: false,
+    });
   });
 
   it("never writes relation fields without a prefLabel", async () => {
@@ -260,7 +274,11 @@ describe("runFill", () => {
   it("rejects proposals with duplicate array entries (uniqueItems)", async () => {
     const dir = setup({ "a.md": "---\ntitle: T\n---\n" });
     const provider = new MockProvider([{ json: { subjects: ["s", "s"] } }]);
-    const report = await runFill({ cwd: dir, providerInstance: provider, noCache: true });
+    const report = await runFill({
+      cwd: dir,
+      providerInstance: provider,
+      noCache: true,
+    });
     expect(report.results[0]).toMatchObject({ status: "error" });
   });
 
@@ -271,7 +289,10 @@ describe("runFill", () => {
     );
     const provider = new MockProvider([{ json: { subjects: ["search"] } }]);
     const report = await runFill({ cwd: dir, providerInstance: provider });
-    expect(report.results[0]).toMatchObject({ status: "filled", fields: ["subjects"] });
+    expect(report.results[0]).toMatchObject({
+      status: "filled",
+      fields: ["subjects"],
+    });
     const written = readFileSync(join(dir, "a.md"), "utf8");
     expect(written).toContain("prefLabel: Kept");
     // provider was only asked for the missing field

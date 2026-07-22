@@ -40,7 +40,10 @@ export function hasScheme(target: string): boolean {
  * pure string math (posix, OS-independent). Returns null when the target
  * escapes the corpus root.
  */
-export function resolveRelative(docPath: string, target: string): string | null {
+export function resolveRelative(
+  docPath: string,
+  target: string,
+): string | null {
   const baseSegments = normalizeDocPath(docPath).split("/").slice(0, -1);
   const segments = [...baseSegments];
   for (const part of target.split("/")) {
@@ -121,7 +124,8 @@ function targetCandidates(
   const dir = target === "" ? "" : `${target}/`;
   const indexCandidates: string[] = [];
   for (const indexFile of indexFiles) {
-    for (const ext of extensions) indexCandidates.push(`${dir}${indexFile}${ext}`);
+    for (const ext of extensions)
+      indexCandidates.push(`${dir}${indexFile}${ext}`);
   }
   return isDirectory
     ? [...indexCandidates, ...extensionCandidates]
@@ -143,7 +147,10 @@ function resolveRoute(
   const clean = safeDecode(pathPart).replace(/\/+$/, "");
   let anyMatched = false;
   for (const mapping of routes) {
-    if (clean !== mapping.basePath && !clean.startsWith(`${mapping.basePath}/`)) {
+    if (
+      clean !== mapping.basePath &&
+      !clean.startsWith(`${mapping.basePath}/`)
+    ) {
       continue;
     }
     anyMatched = true;
@@ -235,10 +242,7 @@ function classifyLink(
   return { raw, kind: "broken" };
 }
 
-function classifyImage(
-  docPath: string,
-  rawTarget: string,
-): DocImage {
+function classifyImage(docPath: string, rawTarget: string): DocImage {
   if (hasScheme(rawTarget)) {
     return { raw: rawTarget, target: rawTarget, external: true };
   }
@@ -289,7 +293,8 @@ export function analyzeDoc(
         while (stack.length > 0 && stack[stack.length - 1]!.level >= level) {
           stack.pop();
         }
-        const parentSlug = stack.length > 0 ? stack[stack.length - 1]!.slug : null;
+        const parentSlug =
+          stack.length > 0 ? stack[stack.length - 1]!.slug : null;
         const parentKey = parentSlug ?? "";
         const order = (childCount.get(parentKey) ?? 0) + 1;
         childCount.set(parentKey, order);
@@ -298,12 +303,19 @@ export function analyzeDoc(
         break;
       }
       case "link": {
-        const link = classifyLink(path, (node as { url: string }).url, allPaths, routes);
+        const link = classifyLink(
+          path,
+          (node as { url: string }).url,
+          allPaths,
+          routes,
+        );
         if (link) links.push(link);
         break;
       }
       case "linkReference": {
-        const def = definitions.get((node as { identifier: string }).identifier);
+        const def = definitions.get(
+          (node as { identifier: string }).identifier,
+        );
         if (def) {
           const link = classifyLink(path, def.url, allPaths, routes);
           if (link) links.push(link);
@@ -315,7 +327,9 @@ export function analyzeDoc(
         break;
       }
       case "imageReference": {
-        const def = definitions.get((node as { identifier: string }).identifier);
+        const def = definitions.get(
+          (node as { identifier: string }).identifier,
+        );
         if (def) images.push(classifyImage(path, def.url));
         break;
       }

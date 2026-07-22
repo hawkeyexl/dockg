@@ -30,7 +30,12 @@ describe("parseConfig", () => {
     expect(c.fill.temperature).toBe(0);
     expect(c.fill.maxCostUsd).toBe(5);
     expect(c.fill.cacheDir).toBe(".dockg/cache");
-    expect(c.fill.fields).toEqual(["prefLabel", "altLabels", "related", "subjects"]);
+    expect(c.fill.fields).toEqual([
+      "prefLabel",
+      "altLabels",
+      "related",
+      "subjects",
+    ]);
   });
 
   it("normalizes baseIri with a trailing slash", () => {
@@ -54,14 +59,17 @@ describe("parseConfig", () => {
   });
 
   it("rejects invalid YAML", () => {
-    expect(() => parseConfig("version: [1\n", "/tmp/dockg.config.yaml")).toThrow(
-      DockgError,
-    );
+    expect(() =>
+      parseConfig("version: [1\n", "/tmp/dockg.config.yaml"),
+    ).toThrow(DockgError);
   });
 
   it("rejects an unknown fill provider", () => {
     expect(() =>
-      parseConfig("version: 1\nfill:\n  provider: gemini\n", "/tmp/dockg.config.yaml"),
+      parseConfig(
+        "version: 1\nfill:\n  provider: gemini\n",
+        "/tmp/dockg.config.yaml",
+      ),
     ).toThrow(DockgError);
   });
 
@@ -102,7 +110,10 @@ describe("parseConfig", () => {
     );
     expect(c.provenance).toEqual({ git: true, qualified: true });
     expect(() =>
-      parseConfig("version: 1\nprovenance:\n  gitTime: true\n", "/tmp/dockg.config.yaml"),
+      parseConfig(
+        "version: 1\nprovenance:\n  gitTime: true\n",
+        "/tmp/dockg.config.yaml",
+      ),
     ).toThrow(DockgError);
   });
 
@@ -125,7 +136,10 @@ describe("loadConfig", () => {
 
   it("loads dockg.config.yaml from cwd", () => {
     const dir = mkdtempSync(join(tmpdir(), "dockg-config-"));
-    writeFileSync(join(dir, "dockg.config.yaml"), "version: 1\nout: graph.ttl\n");
+    writeFileSync(
+      join(dir, "dockg.config.yaml"),
+      "version: 1\nout: graph.ttl\n",
+    );
     const c = loadConfig(undefined, dir);
     expect(c.out).toBe("graph.ttl");
   });

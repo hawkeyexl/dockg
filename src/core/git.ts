@@ -62,7 +62,8 @@ export function unquoteGitPath(path: string): string {
       bytes.push(Number.parseInt(octal, 8));
     } else {
       const map: Record<string, string> = { n: "\n", t: "\t", r: "\r" };
-      for (const byte of Buffer.from(map[next] ?? next, "utf8")) bytes.push(byte);
+      for (const byte of Buffer.from(map[next] ?? next, "utf8"))
+        bytes.push(byte);
     }
   }
   return Buffer.from(bytes).toString("utf8");
@@ -160,7 +161,10 @@ export async function collectGitHistory(
       file.renamedFrom.push(normalizedOld);
       // Older commits refer to the pre-rename path; fold them into this file.
       const normalizedNew = normalizeDocPath(unquoteGitPath(newPath));
-      currentName.set(normalizedOld, currentName.get(normalizedNew) ?? normalizedNew);
+      currentName.set(
+        normalizedOld,
+        currentName.get(normalizedNew) ?? normalizedNew,
+      );
     } else {
       touch(rest);
     }

@@ -64,7 +64,9 @@ fill:
 export function runInit(cwd = process.cwd()): string {
   const path = resolve(cwd, DEFAULT_CONFIG_FILENAME);
   if (existsSync(path)) {
-    throw new DockgError(`${DEFAULT_CONFIG_FILENAME} already exists — not overwriting.`);
+    throw new DockgError(
+      `${DEFAULT_CONFIG_FILENAME} already exists — not overwriting.`,
+    );
   }
   writeFileSync(path, STARTER, "utf8");
   return path;

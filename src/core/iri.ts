@@ -32,7 +32,10 @@ export function encodeSegment(segment: string): string {
 
 /** `{base}doc/{repo-relative-path}`, segment-wise percent-encoded. */
 export function mintDocIri(base: string, relPath: string): string {
-  const path = normalizeDocPath(relPath).split("/").map(encodeSegment).join("/");
+  const path = normalizeDocPath(relPath)
+    .split("/")
+    .map(encodeSegment)
+    .join("/");
   return `${base}doc/${path}`;
 }
 

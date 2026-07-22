@@ -1,0 +1,8 @@
+# Fast gate on the content actually being committed. lint-staged stashes
+# unstaged work and runs against the staged blobs, so `git add` of a badly
+# formatted file followed by `npm run format` (which only fixes the working
+# tree) still fails here — a whole-repo `prettier --check` would not catch it.
+# Typecheck follows on the whole project, because types are not per-file.
+# The `&&` matters: without it a lint-staged failure would be masked by a
+# passing typecheck, since the hook's exit status is that of its last command.
+npx --no -- lint-staged && npm run typecheck

@@ -57,17 +57,28 @@ export function runStats(opts: StatsOptions = {}): StatsReport {
   const docSet = new Set(docIris);
   // One indexed scan for all paths instead of a per-doc lookup.
   const pathOf = new Map<string, string>(docIris.map((d) => [d, d]));
-  for (const quad of store.getQuads(null, namedNode(`${NS.dockg}path`), null, null)) {
+  for (const quad of store.getQuads(
+    null,
+    namedNode(`${NS.dockg}path`),
+    null,
+    null,
+  )) {
     pathOf.set(quad.subject.value, quad.object.value);
   }
 
-  const refQuads = store.getQuads(null, namedNode(`${NS.dcterms}references`), null, null);
+  const refQuads = store.getQuads(
+    null,
+    namedNode(`${NS.dcterms}references`),
+    null,
+    null,
+  );
   const degree = new Map<string, number>(docIris.map((d) => [d, 0]));
   for (const quad of refQuads) {
     const from = quad.subject.value;
     const to = base(quad.object.value);
     if (docSet.has(from)) degree.set(from, (degree.get(from) ?? 0) + 1);
-    if (docSet.has(to) && to !== from) degree.set(to, (degree.get(to) ?? 0) + 1);
+    if (docSet.has(to) && to !== from)
+      degree.set(to, (degree.get(to) ?? 0) + 1);
   }
 
   const orphans = docIris
@@ -77,7 +88,10 @@ export function runStats(opts: StatsOptions = {}): StatsReport {
 
   const brokenLinks = store
     .getQuads(null, namedNode(`${NS.dockg}brokenLink`), null, null)
-    .map((q) => ({ doc: pathOf.get(q.subject.value) ?? q.subject.value, target: q.object.value }))
+    .map((q) => ({
+      doc: pathOf.get(q.subject.value) ?? q.subject.value,
+      target: q.object.value,
+    }))
     .sort((a, b) => (a.doc + a.target < b.doc + b.target ? -1 : 1));
 
   const mostConnected = [...degree.entries()]
@@ -90,8 +104,18 @@ export function runStats(opts: StatsOptions = {}): StatsReport {
     triples: store.size,
     docs: docIris.length,
     // countQuads avoids materializing + sorting arrays used only for counting.
-    sections: store.countQuads(null, namedNode(RDF_TYPE), namedNode(`${NS.dockg}Section`), null),
-    concepts: store.countQuads(null, namedNode(RDF_TYPE), namedNode(`${NS.skos}Concept`), null),
+    sections: store.countQuads(
+      null,
+      namedNode(RDF_TYPE),
+      namedNode(`${NS.dockg}Section`),
+      null,
+    ),
+    concepts: store.countQuads(
+      null,
+      namedNode(RDF_TYPE),
+      namedNode(`${NS.skos}Concept`),
+      null,
+    ),
     references: refQuads.length,
     orphans,
     brokenLinks,
@@ -100,7 +124,10 @@ export function runStats(opts: StatsOptions = {}): StatsReport {
   };
 }
 
-export function renderStats(report: StatsReport, format: "pretty" | "json"): string {
+export function renderStats(
+  report: StatsReport,
+  format: "pretty" | "json",
+): string {
   if (format === "json") {
     const { exitCode: _exitCode, ...rest } = report;
     return JSON.stringify(rest, null, 2);

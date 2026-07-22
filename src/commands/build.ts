@@ -33,7 +33,8 @@ export interface BuildResult {
 export async function runBuild(opts: BuildOptions = {}): Promise<BuildResult> {
   const cwd = opts.cwd ?? process.cwd();
   const config = loadConfig(opts.config, cwd);
-  const inputs = opts.globs && opts.globs.length > 0 ? opts.globs : config.inputs;
+  const inputs =
+    opts.globs && opts.globs.length > 0 ? opts.globs : config.inputs;
 
   const files = discoverFiles(inputs, config.exclude, cwd);
   if (files.length === 0) {

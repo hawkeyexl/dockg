@@ -67,10 +67,14 @@ describe("dockg build (integration)", () => {
     // not a git repo -> operational error
     let status = 0;
     try {
-      execFileSync(process.execPath, [cli, "build", "--out", join(dir, "g.ttl")], {
-        encoding: "utf8",
-        cwd: dir,
-      });
+      execFileSync(
+        process.execPath,
+        [cli, "build", "--out", join(dir, "g.ttl")],
+        {
+          encoding: "utf8",
+          cwd: dir,
+        },
+      );
     } catch (e) {
       status = (e as { status?: number }).status ?? -1;
     }
@@ -78,20 +82,41 @@ describe("dockg build (integration)", () => {
 
     // with a commit: endedAtTime appears and rebuilds are identical
     execFileSync("git", ["init", "-q"], { cwd: dir });
-    execFileSync("git", ["-c", "user.email=t@t", "-c", "user.name=t", "add", "-A"], { cwd: dir });
     execFileSync(
       "git",
-      ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "init"],
+      ["-c", "user.email=t@t", "-c", "user.name=t", "add", "-A"],
       { cwd: dir },
     );
-    execFileSync(process.execPath, [cli, "build", "--out", join(dir, "a.ttl")], {
-      encoding: "utf8",
-      cwd: dir,
-    });
-    execFileSync(process.execPath, [cli, "build", "--out", join(dir, "b.ttl")], {
-      encoding: "utf8",
-      cwd: dir,
-    });
+    execFileSync(
+      "git",
+      [
+        "-c",
+        "user.email=t@t",
+        "-c",
+        "user.name=t",
+        "commit",
+        "-q",
+        "-m",
+        "init",
+      ],
+      { cwd: dir },
+    );
+    execFileSync(
+      process.execPath,
+      [cli, "build", "--out", join(dir, "a.ttl")],
+      {
+        encoding: "utf8",
+        cwd: dir,
+      },
+    );
+    execFileSync(
+      process.execPath,
+      [cli, "build", "--out", join(dir, "b.ttl")],
+      {
+        encoding: "utf8",
+        cwd: dir,
+      },
+    );
     const a = readFileSync(join(dir, "a.ttl"), "utf8");
     expect(a).toBe(readFileSync(join(dir, "b.ttl"), "utf8"));
     expect(a).toMatch(/prov:endedAtTime "[^"]+"\^\^xsd:dateTime/);
@@ -101,7 +126,10 @@ describe("dockg build (integration)", () => {
     const empty = mkdtempSync(join(tmpdir(), "dockg-empty-"));
     let status = 0;
     try {
-      execFileSync(process.execPath, [cli, "build"], { encoding: "utf8", cwd: empty });
+      execFileSync(process.execPath, [cli, "build"], {
+        encoding: "utf8",
+        cwd: empty,
+      });
     } catch (e) {
       status = (e as { status?: number }).status ?? -1;
     }

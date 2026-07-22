@@ -20,8 +20,15 @@ import {
 import { DockgError } from "../types.js";
 import { FillCache, cacheKey } from "../llm/cache.js";
 import { costOfUsage, pricingFor } from "../llm/cost.js";
-import { SYSTEM_PROMPT, buildUserPrompt, proposalSchema } from "../llm/prompt.js";
-import { makeProvider, resolveProviderIdentity } from "../llm/providers/index.js";
+import {
+  SYSTEM_PROMPT,
+  buildUserPrompt,
+  proposalSchema,
+} from "../llm/prompt.js";
+import {
+  makeProvider,
+  resolveProviderIdentity,
+} from "../llm/providers/index.js";
 import type { LlmProvider } from "../llm/types.js";
 
 export interface FillOptions {
@@ -66,16 +73,24 @@ export interface FillReport {
 const ajv = new Ajv2020({ allErrors: true });
 
 /** SKOS relation fields that require a prefLabel to attach to. */
-const RELATION_FIELDS = ["altLabels", "broader", "narrower", "related"] as const;
+const RELATION_FIELDS = [
+  "altLabels",
+  "broader",
+  "narrower",
+  "related",
+] as const;
 
 export async function runFill(opts: FillOptions = {}): Promise<FillReport> {
   const cwd = opts.cwd ?? process.cwd();
   const config = loadConfig(opts.config, cwd);
-  const inputs = opts.globs && opts.globs.length > 0 ? opts.globs : config.inputs;
+  const inputs =
+    opts.globs && opts.globs.length > 0 ? opts.globs : config.inputs;
 
   const files = discoverFiles(inputs, config.exclude, cwd);
   if (files.length === 0) {
-    throw new DockgError(`No input files matched: ${inputs.join(", ")} (cwd: ${cwd})`);
+    throw new DockgError(
+      `No input files matched: ${inputs.join(", ")} (cwd: ${cwd})`,
+    );
   }
 
   // Identity (for cache keys and pricing) is resolvable without constructing
@@ -99,7 +114,10 @@ export async function runFill(opts: FillOptions = {}): Promise<FillReport> {
 
   const fields = config.fill.fields;
   const validateProposal = ajv.compile(proposalSchema(fields));
-  const cache = new FillCache(resolve(cwd, config.fill.cacheDir), !opts.noCache);
+  const cache = new FillCache(
+    resolve(cwd, config.fill.cacheDir),
+    !opts.noCache,
+  );
   const pricing = pricingFor(identity.model, config.fill.pricing);
   const maxCostUsd = opts.maxCost ?? config.fill.maxCostUsd;
 
@@ -150,7 +168,13 @@ export async function runFill(opts: FillOptions = {}): Promise<FillReport> {
     const present = new Set(existingKgFields(content));
     const missing = opts.force ? fields : fields.filter((f) => !present.has(f));
     if (missing.length === 0) {
-      return { path, status: "complete", fields: [], preserved: [], cached: false };
+      return {
+        path,
+        status: "complete",
+        fields: [],
+        preserved: [],
+        cached: false,
+      };
     }
 
     if (maxCostUsd !== null && costUsd >= maxCostUsd) {
@@ -173,7 +197,9 @@ export async function runFill(opts: FillOptions = {}): Promise<FillReport> {
     const cached = proposal !== undefined;
 
     if (proposal === undefined) {
-      const doc = analyzeDoc(content, path, allPaths, { routes: config.routes });
+      const doc = analyzeDoc(content, path, allPaths, {
+        routes: config.routes,
+      });
       const response = await getProvider().completeJSON({
         system: SYSTEM_PROMPT,
         user: buildUserPrompt(doc, content, missing),
@@ -204,7 +230,8 @@ export async function runFill(opts: FillOptions = {}): Promise<FillReport> {
     // (dependentRequired) — never write output our own validate rejects.
     const willHavePrefLabel =
       present.has("prefLabel") ||
-      (typeof narrowed["prefLabel"] === "string" && narrowed["prefLabel"].length > 0);
+      (typeof narrowed["prefLabel"] === "string" &&
+        narrowed["prefLabel"].length > 0);
     if (!willHavePrefLabel) {
       for (const field of RELATION_FIELDS) delete narrowed[field];
     }
@@ -213,10 +240,18 @@ export async function runFill(opts: FillOptions = {}): Promise<FillReport> {
     // empty means nothing to do — and no provenance entry either.
     const realFields = Object.keys(narrowed).filter((k) => {
       const v = narrowed[k];
-      return v !== undefined && v !== null && !(Array.isArray(v) && v.length === 0);
+      return (
+        v !== undefined && v !== null && !(Array.isArray(v) && v.length === 0)
+      );
     });
     if (realFields.length === 0) {
-      return { path, status: "nothing-proposed", fields: [], preserved: [], cached };
+      return {
+        path,
+        status: "nothing-proposed",
+        fields: [],
+        preserved: [],
+        cached,
+      };
     }
 
     // Record machine attribution alongside the fields, in the SAME write.
@@ -270,16 +305,23 @@ export async function runFill(opts: FillOptions = {}): Promise<FillReport> {
   }
 }
 
-export function renderFill(report: FillReport, format: "pretty" | "json"): string {
+export function renderFill(
+  report: FillReport,
+  format: "pretty" | "json",
+): string {
   if (format === "json") return JSON.stringify(report, null, 2);
   const lines: string[] = [];
   for (const r of report.results) {
     switch (r.status) {
       case "filled":
-        lines.push(`filled    ${r.path} (${r.fields.join(", ")})${r.cached ? " [cached]" : ""}`);
+        lines.push(
+          `filled    ${r.path} (${r.fields.join(", ")})${r.cached ? " [cached]" : ""}`,
+        );
         break;
       case "proposed":
-        lines.push(`proposed  ${r.path} (${r.fields.join(", ")})${r.cached ? " [cached]" : ""} — dry run, not written`);
+        lines.push(
+          `proposed  ${r.path} (${r.fields.join(", ")})${r.cached ? " [cached]" : ""} — dry run, not written`,
+        );
         break;
       case "complete":
         lines.push(`complete  ${r.path}`);

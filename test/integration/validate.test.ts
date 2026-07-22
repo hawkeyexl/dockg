@@ -33,7 +33,10 @@ describe("dockg validate", () => {
 
   it("accepts kg.revisionOf via the bundled 0.3 schema, rejects malformed shapes", () => {
     const dir = mkdtempSync(join(tmpdir(), "dockg-revof-"));
-    writeFileSync(join(dir, "dockg.config.yaml"), 'version: 1\ninputs: ["*.md"]\n');
+    writeFileSync(
+      join(dir, "dockg.config.yaml"),
+      'version: 1\ninputs: ["*.md"]\n',
+    );
     writeFileSync(
       join(dir, "good.md"),
       "---\nkg:\n  revisionOf: [old/guide.md]\n---\n\n# G\n",

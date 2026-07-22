@@ -1,3 +1,14 @@
+# LF everywhere — in the object store and in every working tree, on every
+# platform. Declared here rather than left to core.autocrlf/core.eol because
+# config is per-machine and does not travel: without this line the policy holds
+# only for a developer who happens to have configured it globally, and CI or a
+# default Windows clone (autocrlf=true) would produce CRLF working trees.
+* text=auto eol=lf
+
+# Exemptions below. ORDER MATTERS: in .gitattributes the LAST matching line
+# wins, so every `-text` override must stay beneath the `*` rule above.
+# `-text` disables conversion entirely and keeps bytes verbatim.
+
 # The CRLF fixture must keep its CRLF line endings verbatim.
 test/fixtures/corpus/docs/windows-notes.md -text
 # Golden output is byte-exact LF.

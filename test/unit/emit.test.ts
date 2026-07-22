@@ -14,8 +14,16 @@ function sample(): Quad[] {
     { s: DOC, p: `${NS.dcterms}title`, o: lit("Hello") },
     { s: DOC, p: `${NS.rdf}type`, o: iri(`${NS.dockg}Document`) },
     { s: DOC, p: `${NS.dockg}level`, o: lit("2", `${NS.xsd}integer`) },
-    { s: DOC, p: `${NS.dcterms}subject`, o: iri("https://example.com/kg/concept/b") },
-    { s: DOC, p: `${NS.dcterms}subject`, o: iri("https://example.com/kg/concept/a") },
+    {
+      s: DOC,
+      p: `${NS.dcterms}subject`,
+      o: iri("https://example.com/kg/concept/b"),
+    },
+    {
+      s: DOC,
+      p: `${NS.dcterms}subject`,
+      o: iri("https://example.com/kg/concept/a"),
+    },
     {
       s: "https://example.com/kg/concept/a",
       p: `${NS.skos}prefLabel`,
@@ -35,7 +43,9 @@ describe("emitTurtle", () => {
     expect(conceptAt).toBeGreaterThan(-1);
     expect(conceptAt).toBeLessThan(docAt);
     // rdf:type first within the doc block, as `a`
-    expect(ttl).toMatch(/<https:\/\/example\.com\/kg\/doc\/docs\/a\.md> a dockg:Document ;/);
+    expect(ttl).toMatch(
+      /<https:\/\/example\.com\/kg\/doc\/docs\/a\.md> a dockg:Document ;/,
+    );
   });
 
   it("groups multiple objects for one predicate with commas, sorted", () => {
@@ -53,14 +63,22 @@ describe("emitTurtle", () => {
 
   it("emits typed non-integer literals with a datatype suffix", () => {
     const ttl = emitTurtle([
-      { s: DOC, p: `${NS.dcterms}created`, o: lit("2026-05-01", `${NS.xsd}date`) },
+      {
+        s: DOC,
+        p: `${NS.dcterms}created`,
+        o: lit("2026-05-01", `${NS.xsd}date`),
+      },
     ]);
     expect(ttl).toContain(`dcterms:created "2026-05-01"^^xsd:date`);
   });
 
   it("escapes literals", () => {
     const ttl = emitTurtle([
-      { s: DOC, p: `${NS.dcterms}title`, o: lit('He said "hi"\nback\\slash\ttab') },
+      {
+        s: DOC,
+        p: `${NS.dcterms}title`,
+        o: lit('He said "hi"\nback\\slash\ttab'),
+      },
     ]);
     expect(ttl).toContain('"He said \\"hi\\"\\nback\\\\slash\\ttab"');
   });

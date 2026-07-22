@@ -1,1 +1,2 @@
-npx --no -- commitlint --edit $1
+# Quote $1: the commit-message path can contain spaces (worktrees, Windows).
+npx --no -- commitlint --edit "$1"

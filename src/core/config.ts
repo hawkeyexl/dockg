@@ -23,12 +23,7 @@ export type DeriveSource =
   | "provenance";
 
 export type FillField =
-  | "prefLabel"
-  | "altLabels"
-  | "broader"
-  | "narrower"
-  | "related"
-  | "subjects";
+  "prefLabel" | "altLabels" | "broader" | "narrower" | "related" | "subjects";
 
 export interface Pricing {
   inputPerMTok: number;
@@ -129,7 +124,9 @@ export function parseConfig(text: string, configPath: string): DockgConfig {
     );
   }
   if (raw == null || typeof raw !== "object" || Array.isArray(raw)) {
-    throw new DockgError(`Invalid config in ${configPath}: root must be an object`);
+    throw new DockgError(
+      `Invalid config in ${configPath}: root must be an object`,
+    );
   }
   if (!validateConfig(raw)) {
     const details = (validateConfig.errors ?? [])
@@ -138,6 +135,10 @@ export function parseConfig(text: string, configPath: string): DockgConfig {
     throw new DockgError(`Invalid config in ${configPath}:\n${details}`);
   }
 
+  // Past this point Ajv has validated `raw` against config-schema.json, so the
+  // shape is known-good and reading fields off it is safe. `unknown` would buy
+  // nothing here but a cast at every access.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const r = raw as Record<string, any>;
   const abs = resolve(configPath);
   const dir = dirname(abs);
@@ -148,9 +149,13 @@ export function parseConfig(text: string, configPath: string): DockgConfig {
     inputs: r.inputs ?? ["**/*.md"],
     exclude: r.exclude ?? ["**/node_modules/**"],
     out: r.out ?? "kg/graph.ttl",
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     routes: ((r.routes ?? []) as Array<Record<string, any>>).map((m) => ({
       basePath: normalizeBasePath(m.basePath ?? "/"),
-      root: String(m.root).replace(/\\/g, "/").replace(/^\.\//, "").replace(/\/+$/, ""),
+      root: String(m.root)
+        .replace(/\\/g, "/")
+        .replace(/^\.\//, "")
+        .replace(/\/+$/, ""),
       extensions: m.extensions ?? [...DEFAULT_LINK_EXTENSIONS],
       indexFiles: m.indexFiles ?? [...DEFAULT_INDEX_FILES],
     })),
@@ -174,7 +179,12 @@ export function parseConfig(text: string, configPath: string): DockgConfig {
       temperature: r.fill?.temperature ?? 0,
       maxCostUsd: r.fill?.maxCostUsd === undefined ? 5 : r.fill.maxCostUsd,
       cacheDir: r.fill?.cacheDir ?? ".dockg/cache",
-      fields: r.fill?.fields ?? ["prefLabel", "altLabels", "related", "subjects"],
+      fields: r.fill?.fields ?? [
+        "prefLabel",
+        "altLabels",
+        "related",
+        "subjects",
+      ],
       writeProvenance: r.fill?.writeProvenance ?? true,
       pricing: r.fill?.pricing,
     },
