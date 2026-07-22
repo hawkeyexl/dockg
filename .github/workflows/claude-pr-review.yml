@@ -10,7 +10,7 @@ concurrency:
 
 jobs:
   review:
-    if: '!github.event.pull_request.draft'
+    if: "!github.event.pull_request.draft"
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -48,7 +48,7 @@ jobs:
           # action hard-fails with "Workflow initiated by non-human actor"
           # instead of reviewing. A posted review is not a push/synchronize
           # event, so this cannot loop.
-          allowed_bots: 'claude[bot]'
+          allowed_bots: "claude[bot]"
           track_progress: true
           prompt: |
             REPO: ${{ github.repository }}

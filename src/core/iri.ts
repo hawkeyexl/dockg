@@ -67,7 +67,11 @@ export function mintSchemeIri(base: string): string {
 export type AgentKind = "person" | "org" | "software";
 
 /** `{base}agent/{kind}/{slug(name)}`. */
-export function mintAgentIri(base: string, kind: AgentKind, name: string): string {
+export function mintAgentIri(
+  base: string,
+  kind: AgentKind,
+  name: string,
+): string {
   return `${base}agent/${kind}/${encodeSegment(conceptSlug(name))}`;
 }
 
