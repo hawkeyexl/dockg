@@ -1,0 +1,305 @@
+# dockg long-term design: standards-typed graphs → GraphRAG
+
+Status: living document. This is the roadmap and decision framework, not the
+decisions themselves — each phase opens by making its own decisions as ADRs
+(MADR, `adrs/`), doing its listed research first. Tackle **one phase at a
+time**; do not start a phase while the previous one has open decisions.
+
+## Vision
+
+dockg becomes the standards-typed knowledge layer for documentation
+repositories: a deterministic, governed RDF graph derived from docs, exported
+in the formats the outside world consumes (Turtle, JSON-LD/schema.org, iiRDS
+packages), and — ultimately — the substrate of a full hybrid GraphRAG system
+(graph-governed retrieval + vector entry + interlocked answer synthesis),
+consumable by agents via MCP.
+
+The design is grounded in the iiRDS × knowledge-graph work published by
+Natsuki Wakabayashi (tcworld, "Architecting certainty" parts 1–3, June 2026,
+plus companion posts). The load-bearing findings:
+
+- **Vector RAG suffers "edge contamination"** — semantically close chunks let
+  LLMs blend content across product/variant boundaries. Graphs prevent this
+  *deterministically*: an absent edge is an interlock, forcing disciplined
+  silence instead of helpful fabrication.
+- **Graphs are irreplaceable for governance jobs** (variant filtering, impact
+  analysis, compliance audit), while flat retrieval is adequate for ordinary
+  Q&A. dockg's differentiation lives in the governance jobs.
+- **"Information evaporation" (the 5 mm silence)**: a system that treats the
+  graph as the sole truth surface loses every fact not lifted into a node.
+  The countermeasures are hybrid consumption (graph routes, files carry
+  content), measurable metadata coverage, and deliberate
+  resolution-deepening (LLM-assisted property lifting with audit).
+- **Granularity golden rule**: content granularity must match graph node
+  granularity — hence section-level metadata.
+- **Exception-based auditing**: forced-reasoning generation plus
+  confidence-scored verification lets humans review only flagged exceptions.
+
+## Settled direction (decided by the maintainer; not up for re-litigation)
+
+1. **Opinionated defaults.** Every optional *hermetic* feature is on by
+   default (git provenance, qualified provenance, new derive sources,
+   coverage reporting, all export formats emitted by `dockg build`). The
+   boundary: anything that costs network or money (`fill`, future
+   `index`/`ask`) stays an explicit invocation — with strict guardrails as
+   *its* defaults. Suppression knobs remain (opinionated ≠ non-configurable).
+2. **Pre-release: breaking changes are fine.** No staged major releases, no
+   migration choreography. Commits still mark breakage honestly
+   (`feat!:`/`BREAKING CHANGE:`) because commitlint and semantic-release
+   consume them.
+3. **iiRDS is in, starting with the Core vocabulary.** Adopt iiRDS Core terms
+   wherever a dockg concept maps; research domain extensions (see Phase 2
+   research list) before choosing more. Reference published iiRDS IRIs —
+   never vendor or modify the spec (CC BY-ND).
+4. **iiRDS package export is in scope** — a first-class deliverable, not
+   demand-gated.
+5. **Section-level metadata is in scope** — the graph already has per-section
+   nodes; metadata must be able to attach to them.
+6. **GraphRAG is the endgame** — dockg grows a runtime (traversal, hybrid
+   entry, synthesis, MCP serving, eval harness) on top of the build tool.
+
+## Standing invariants (unchanged by this roadmap)
+
+- Determinism: byte-identical rebuilds, no wall clock, no blank nodes,
+  sorted emission, IRI stability. Runtime features (ask/index/mcp) live
+  *outside* the hermetic build; CI never touches the network (mock providers
+  only).
+- The golden corpus comparison stays the regression gate; goldens change only
+  deliberately, diff inspected line by line.
+- Published schemas and shapes are immutable; evolve by new version files.
+- Custom `dockg:` namespace stays minimal; prefer external vocabularies.
+- Exit-code contract: 0 ok · 1 findings · 2 operational.
+- Every behavior change: ADR + docs + shapes review in the same change.
+
+---
+
+## Phase 0 — Positioning and hygiene
+
+**Goal:** ratify the product frame everything else builds on.
+
+Decisions to make (ADRs):
+- **Graph-as-index contract.** Proposed frame: the graph is an index and
+  governance layer; prose never enters it; consumers join graph → files via
+  `dockg:path` + section slug (hybrid consumption). Ratify, amend, or reject.
+- Whether the opinionated-defaults mandate (settled above) gets its own
+  umbrella ADR now or is recorded per-phase as defaults flip.
+
+Deliverables: the ADR(s); README "what the graph is (and isn't)" section; a
+"related standards" note (iiRDS, DIN SPEC 91526, QUDT) including the
+no-vendoring licensing rule. *(Already done and available to restore/redo:
+the 01004→01007 ADR renumbering chore is committed.)*
+
+## Phase 1 — Metadata coverage in `stats`
+
+**Goal:** make the lifted/unlifted boundary measurable (the evaporation
+countermeasure), before new vocabulary lands.
+
+Decisions to make (ADR):
+- Field list and predicate mapping to measure; report shape (counts +
+  percentages), rounding rule, empty-graph semantics.
+- Enforcement: threshold knob (`stats.coverageThreshold`?) folded into the
+  existing `--check` gate vs. report-only. A threshold has no universally
+  correct value — decide the default (0 = report-only is the conservative
+  candidate) against the opinionated-defaults mandate.
+
+Deliverables: coverage block in `stats` (pretty + JSON), config knob per the
+schema-first pattern, corpus-exact integration tests, README/`--help` docs.
+
+## Phase 2 — iiRDS Core vocabulary adoption
+
+**Goal:** dockg graphs speak the tech-comm industry's RDF dialect where a
+term fits.
+
+Research first (do not decide before this is done):
+- **iiRDS Core vocabulary survey**: which Core classes/properties map onto
+  dockg concepts — candidates: `iirds:InformationUnit`/`Topic`/`Fragment` vs
+  `dockg:Document`/`Section`; topic types (task/concept/reference/learning);
+  `iirds:relates-to-product-variant` / product metadata for applicability;
+  docs-lifecycle/status terms. Output: a mapping table (dockg concept →
+  iiRDS IRI → adopt/skip + why).
+- **Domain extensions**: iiRDS ships a machinery domain extension; research
+  whether **software-specific extensions or profiles exist or are emerging**
+  (iiRDS for software documentation, iiRDS/H, consortium working drafts,
+  iiRDS Open Toolkit conventions) and whether any is worth adopting or
+  tracking. If none exists, decide whether dockg's own mapping should be
+  publishable as a de-facto software profile.
+- **iiRDS 1.3 validation assets**: are there official SHACL shapes for iiRDS
+  conformance dockg could run or align with?
+- Exact namespace IRIs and version pinning strategy (iiRDS versions its
+  vocabulary; decide how dockg tracks releases).
+
+Decisions to make (ADRs):
+- Which Core terms to adopt now; typing strategy (additional `rdf:type` on
+  existing nodes vs. properties only).
+- New `kg:` frontmatter fields (e.g. `topicType`, `appliesTo`) and their
+  enum domains; new schema version (`frontmatter-0.5.json`).
+- Shapes version bump (`shapes/dockg-0.2.ttl`) — closed shapes must learn
+  every new predicate; the clean-corpus `check` gate stays green.
+- Defaults: derive on by default (per mandate) — record the golden impact.
+
+Deliverables: `iirds:` in the namespace table, derive support, schema 0.5,
+shapes 0.2, corpus permutations for every new field (incl. off/absent
+forms), README vocabulary table + init template + `--help`.
+
+## Phase 3 — Section-level metadata
+
+**Goal:** metadata attaches at the granularity the graph already models.
+
+Decisions to make (ADRs):
+- **Authoring mechanism.** Leading candidate: slug-keyed frontmatter
+  (`kg.sections.<heading-slug>: {...}`) — schema-validatable, no new inline
+  syntax, joins on the slugs section IRIs already use. Alternatives to weigh:
+  inline directives/comments in the body; per-section files. Decide.
+- Slug-drift handling (heading renamed → orphaned key): silent drop is a
+  self-inflicted evaporation; a `brokenSectionRef`-style finding surfaced by
+  `stats` is the leading candidate.
+- Inheritance semantics: does a section inherit doc-level metadata, override
+  it, or neither (explicit-only)?
+- Which fields are section-assignable (all of `kg:`? only the iiRDS
+  applicability/typing fields?).
+
+Deliverables: schema + derive + shapes coverage, corpus permutations
+(overrides, absent, drifted slug), docs.
+
+## Phase 4 — Negative scope and closed-world semantics
+
+**Goal:** make the "absent edge as interlock" pattern *expressible* in an
+open-world RDF graph — explicitly, never by inference from absence.
+
+Decisions to make (ADRs):
+- Modeling: an explicit negative-applicability predicate
+  (`kg.notApplicableTo` → a deliberate addition to the minimal `dockg:`
+  namespace, since neither iiRDS nor schema.org has a `what_it_is_not`
+  equivalent — verify in Phase 2 research) vs. documentation-only guidance
+  vs. per-corpus closed-world declarations.
+- SHACL: `appliesTo`/`notApplicableTo` disjointness as a `sh:Violation`.
+- Consumer contract: README documents what absence means (unknown, not
+  false) and how retrieval layers should implement interlocks.
+
+## Phase 5 — Fill as resolution-deepening
+
+**Goal:** `fill` becomes the deliberate lift-facts-into-the-graph phase, with
+exception-based human review.
+
+Decisions to make (ADRs):
+- Forced reasoning in fill prompts (justify each proposal against doc +
+  corpus) — cost/benefit per provider.
+- Confidence scoring: per-field scores; `fill.minConfidence` gate (proposals
+  below it are reported as findings, not written). Where confidence lives:
+  run report only vs. `kg.provenance` (leading candidate: run report only —
+  provenance already names machine-filled fields and humans delete entries
+  after review).
+- Whether fill learns the new Phase 2/3 fields (`topicType`, `appliesTo`,
+  section metadata) and in what order of trust.
+
+Constraints: MockProvider-only tests; the SHACL fill-guard stays the
+structural gate ("certified by structure"); build determinism untouched.
+
+## Phase 6 — Export surfaces
+
+**Goal:** the graph reaches its consumers in their native formats; `build`
+emits everything by default (per mandate).
+
+Decisions to make (ADRs):
+- **JSON-LD/schema.org export**: mapping (mostly identity — `schema:` and
+  `dcterms:` pass through; decide additional typing like
+  `schema:TechArticle`); deterministic serialization (stable key order via
+  `byCodeUnit`); what is explicitly out of scope (e.g. `HowTo` step
+  synthesis).
+- **iiRDS package export**: package layout (`metadata.rdf` + content refs),
+  what plays the content role for markdown sources, deterministic zip (fixed
+  entry order, zeroed timestamps), conformance target (iiRDS 1.3 package
+  rules), and whether the Phase 2 mapping suffices or the package needs
+  more.
+- Output paths and suppression knobs; whether exports are `build` outputs
+  (mandated default) *and* standalone commands.
+- **iiRDS ingest** (packages as a derive source): decide explicitly —
+  in, out, or deferred with trigger condition.
+
+Research first: iiRDS package conformance requirements; how existing CDPs
+(content delivery portals) validate incoming packages.
+
+## Phase 7 — Query engine and content resolver
+
+**Goal:** the runtime foundation: real traversal over the built graph plus
+node→text resolution. First phase of the GraphRAG arc.
+
+Decisions to make (ADRs):
+- Traversal API vs. SPARQL first (leading candidate: purpose-built
+  deterministic walker — expand, reverse-references, variant filter,
+  negative-scope check — with SPARQL as a later addition behind the same
+  seam; alternatives: oxigraph WASM, Comunica over the N3 store).
+- Content resolver contract: IRI → file path + heading span → text;
+  behavior when files drifted from the graph (stale build detection?).
+- CLI surface (`dockg traverse`? extend `query`?) and JSON output shapes.
+
+Constraints: fully hermetic, corpus-testable, no LLM involvement.
+
+## Phase 8 — Hybrid entry (embeddings sidecar)
+
+**Goal:** natural-language entry points into the graph without breaking the
+hermetic build.
+
+Decisions to make (ADRs):
+- `dockg index` as an explicit command (network boundary per the defaults
+  mandate); provider seam through `src/llm/`; deterministic mock embedder
+  for tests.
+- Sidecar artifact format/location (gitignored, cache-keyed, disposable —
+  the graph stays the source of truth); staleness/invalidation story.
+- Chunking = section nodes (granularity golden rule) — confirm or refine.
+
+## Phase 9 — `ask` + MCP serving
+
+**Goal:** interlocked answer synthesis and agent-consumable serving.
+
+Decisions to make (ADRs):
+- Retrieval pipeline: vector entry (if index present) → graph traversal
+  honoring `appliesTo`/negative scope → content resolution → synthesis with
+  mandatory IRI citations; **no route found = refuse and say so** (the
+  disciplined-silence contract).
+- `dockg mcp`: which tools to expose (`ask`, `traverse`, `impact`,
+  `check`-style audit); transport; auth story if any.
+- Runtime never writes the graph; `fill` remains the only LLM→frontmatter
+  path. Ratify as a standing invariant.
+
+## Phase 10 — Evaluation harness
+
+**Goal:** the GraphRAG behavior becomes a regression-gated contract, like
+the golden Turtle.
+
+Decisions to make (ADRs):
+- Golden Q&A fixtures over the corpus: answerable questions with expected
+  citation IRIs, *unanswerable* questions with expected refusals (the
+  Test A/B/C pattern from the source research).
+- CI runs with mocks only; documented recipe for live-model eval runs
+  outside CI; metrics worth tracking (answerability, citation precision,
+  refusal correctness).
+
+---
+
+## Cross-phase research backlog
+
+Items referenced above, gathered for scheduling (research lands at the start
+of the phase that needs it, not before):
+
+| Item | Needed by |
+|---|---|
+| iiRDS Core term-by-term mapping survey | Phase 2 |
+| Software-specific iiRDS extensions/profiles (existing or emerging); machinery extension as reference | Phase 2 |
+| iiRDS/H and DIN SPEC 91526 relationship to Core; what to track vs. adopt | Phase 2 |
+| Official iiRDS SHACL/validation assets | Phase 2 |
+| Negative-scope precedent in iiRDS/schema.org (verify none before minting `dockg:` term) | Phase 4 |
+| iiRDS 1.3 package conformance rules; CDP intake validation practices | Phase 6 |
+| QUDT adoption for quantitative properties (sizes, torques) lifted by fill | Phase 5/6 |
+| Embedded SPARQL options (oxigraph WASM, Comunica) vs. custom walker maintenance cost | Phase 7 |
+| MCP server conventions for doc/knowledge tools | Phase 9 |
+
+## Process per phase
+
+1. Do the phase's research items; capture findings in the phase ADR(s).
+2. Write the ADR(s); get maintainer sign-off on contested decisions.
+3. Red→green TDD; corpus permutations for every user-visible behavior.
+4. Schema/shapes version bumps as needed (immutable published files).
+5. Docs (README, init template, `--help`) in the same change; golden diffs
+   inspected line by line.
+6. Full verification loop green; PR per phase (or per coherent slice).
