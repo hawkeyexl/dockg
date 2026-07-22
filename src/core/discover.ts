@@ -4,11 +4,7 @@
  * order is independent of glob order and filesystem enumeration order.
  */
 import fg from "fast-glob";
-
-/** Locale-independent code-unit comparison for stable sorting. */
-function byCodeUnit(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
-}
+import { byCodeUnit } from "./sort.js";
 
 export function discoverFiles(
   inputs: string[],
@@ -22,5 +18,7 @@ export function discoverFiles(
     dot: false,
     unique: true,
   });
-  return [...new Set(matches.map((m) => m.replace(/\\/g, "/")))].sort(byCodeUnit);
+  return [...new Set(matches.map((m) => m.replace(/\\/g, "/")))].sort(
+    byCodeUnit,
+  );
 }

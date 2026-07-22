@@ -9,6 +9,7 @@
  * Correctness of escaping is guarded by a round-trip test through n3's parser.
  */
 import type { Quad, Term } from "./derive.js";
+import { byCodeUnit } from "./sort.js";
 import { NS, PREFIXES, RDF_TYPE } from "./vocab.js";
 
 /** Conservative PN_LOCAL: shorten only when the local name is trivially safe. */
@@ -73,13 +74,10 @@ const INTEGER_RE = /^-?\d+$/;
 
 function renderTerm(term: Term): string {
   if (term.kind === "iri") return shorten(term.value);
-  if (term.datatype === INTEGER && INTEGER_RE.test(term.value)) return term.value;
+  if (term.datatype === INTEGER && INTEGER_RE.test(term.value))
+    return term.value;
   const quoted = `"${escapeLiteral(term.value)}"`;
   return term.datatype ? `${quoted}^^${shorten(term.datatype)}` : quoted;
-}
-
-function byCodeUnit(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
 }
 
 /** Sort objects: IRIs before literals, each lexicographically. */
@@ -136,7 +134,9 @@ export function emitTurtle(quads: Quad[]): string {
     });
 
     const first = entries[0]!;
-    lines.push(`${shorten(subject)} ${first.pred} ${first.objects}${first.terminator}`);
+    lines.push(
+      `${shorten(subject)} ${first.pred} ${first.objects}${first.terminator}`,
+    );
     for (const entry of entries.slice(1)) {
       lines.push(`  ${entry.pred} ${entry.objects}${entry.terminator}`);
     }
