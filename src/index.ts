@@ -6,6 +6,7 @@ export {
   type DockgConfig,
   type DeriveSource,
   type FillField,
+  type GitMode,
   type Pricing,
 } from "./core/config.js";
 export { discoverFiles } from "./core/discover.js";
