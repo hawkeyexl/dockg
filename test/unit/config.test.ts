@@ -139,6 +139,50 @@ describe("parseConfig", () => {
     ).toThrow(DockgError);
   });
 
+  it("defaults stats.coverageThreshold to an empty (ungated) map", () => {
+    const c = parseConfig("version: 1\n", "/tmp/dockg.config.yaml");
+    expect(c.stats.coverageThreshold).toEqual({});
+  });
+
+  it("expands a uniform coverage threshold across every measured field", () => {
+    const c = parseConfig(
+      "version: 1\nstats:\n  coverageThreshold: 80\n",
+      "/tmp/dockg.config.yaml",
+    );
+    // Every one of the seven fields gated at the same value.
+    expect(c.stats.coverageThreshold.title).toBe(80);
+    expect(Object.keys(c.stats.coverageThreshold).sort()).toEqual([
+      "created",
+      "creator",
+      "description",
+      "modified",
+      "prefLabel",
+      "subject",
+      "title",
+    ]);
+  });
+
+  it("parses a per-field coverage threshold map and leaves others ungated", () => {
+    const c = parseConfig(
+      "version: 1\nstats:\n  coverageThreshold:\n    title: 100\n    description: 50\n",
+      "/tmp/dockg.config.yaml",
+    );
+    expect(c.stats.coverageThreshold).toEqual({ title: 100, description: 50 });
+  });
+
+  it("rejects out-of-range and unknown coverage threshold fields", () => {
+    for (const bad of [
+      "stats:\n  coverageThreshold: 101\n",
+      "stats:\n  coverageThreshold: -1\n",
+      "stats:\n  coverageThreshold:\n    bogus: 50\n",
+      "stats:\n  coverageThreshold:\n    title: 101\n",
+    ]) {
+      expect(() =>
+        parseConfig(`version: 1\n${bad}`, "/tmp/dockg.config.yaml"),
+      ).toThrow(DockgError);
+    }
+  });
+
   it("parses all three provenance.git modes and rejects other strings", () => {
     for (const mode of ["auto", true, false] as const) {
       const c = parseConfig(

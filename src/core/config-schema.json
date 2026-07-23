@@ -86,6 +86,34 @@
         "qualified": { "type": "boolean" }
       }
     },
+    "stats": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "coverageThreshold": {
+          "anyOf": [
+            { "type": "number", "minimum": 0, "maximum": 100 },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "title": { "type": "number", "minimum": 0, "maximum": 100 },
+                "description": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 100
+                },
+                "creator": { "type": "number", "minimum": 0, "maximum": 100 },
+                "created": { "type": "number", "minimum": 0, "maximum": 100 },
+                "modified": { "type": "number", "minimum": 0, "maximum": 100 },
+                "subject": { "type": "number", "minimum": 0, "maximum": 100 },
+                "prefLabel": { "type": "number", "minimum": 0, "maximum": 100 }
+              }
+            }
+          ]
+        }
+      }
+    },
     "fill": {
       "type": "object",
       "additionalProperties": false,

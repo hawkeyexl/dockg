@@ -10,6 +10,7 @@ import { Ajv2020 } from "ajv/dist/2020.js";
 import configSchema from "./config-schema.json" with { type: "json" };
 import { DockgError } from "../types.js";
 import { resolveBaseIri } from "./iri.js";
+import { COVERAGE_FIELD_NAMES } from "./coverage.js";
 
 export type ProviderName = "anthropic" | "openai" | "claude-cli" | "mock";
 
@@ -97,6 +98,15 @@ export interface DockgConfig {
     validateGraph: boolean;
     pricing?: Pricing;
   };
+  stats: {
+    /**
+     * Per-field minimum coverage percentages (0–100) enforced under
+     * `stats --check`. Resolved shape is always a map; a uniform number in the
+     * config expands across every measured field. Default `{}` gates nothing.
+     * See ADR 01011.
+     */
+    coverageThreshold: Record<string, number>;
+  };
   /** Absolute path of the loaded config file. */
   configPath: string;
   /** Directory containing the config file; relative paths resolve against it. */
@@ -129,6 +139,21 @@ function normalizeBasePath(basePath: string): string {
 
 const ajv = new Ajv2020({ allErrors: true, allowUnionTypes: true });
 const validateConfig = ajv.compile(configSchema);
+
+/**
+ * Normalize `stats.coverageThreshold` to a per-field map. Ajv has already
+ * validated the input as a number, an object of known fields, or absent; a
+ * uniform number expands across every measured field so the resolved shape is
+ * always a map (default `{}`).
+ */
+function resolveCoverageThreshold(
+  raw: number | Record<string, number> | undefined,
+): Record<string, number> {
+  if (raw == null) return {};
+  if (typeof raw === "number")
+    return Object.fromEntries(COVERAGE_FIELD_NAMES.map((f) => [f, raw]));
+  return { ...raw };
+}
 
 /** Parse and validate config YAML text. `configPath` is used for messages and path resolution. */
 export function parseConfig(text: string, configPath: string): DockgConfig {
@@ -190,6 +215,9 @@ export function parseConfig(text: string, configPath: string): DockgConfig {
     provenance: {
       git: r.provenance?.git ?? "auto",
       qualified: r.provenance?.qualified ?? true,
+    },
+    stats: {
+      coverageThreshold: resolveCoverageThreshold(r.stats?.coverageThreshold),
     },
     fill: {
       provider: r.fill?.provider ?? "anthropic",

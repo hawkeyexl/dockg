@@ -24,7 +24,8 @@ Prose never enters the graph; only metadata does. Consume it in two halves:
 fact that lives only in prose does not exist for a graph-only consumer — so a
 retrieval system built on dockg must read the files the graph points at rather
 than answering from triples. The more you lift into frontmatter, the more the
-graph can route and govern.
+graph can route and govern; [`dockg stats`](#metadata-coverage) reports how much
+you have lifted so the gaps are a number you can see.
 
 ## Install
 
@@ -249,9 +250,21 @@ dockg fill --force            # overwrite human-set kg fields too
 | `dockg check` | Validate the built graph against the SHACL shapes (bundled `shapes/dockg-0.1.ttl`) |
 | `dockg fill [globs]` | Propose SKOS `kg:` fields with an LLM and write them back |
 | `dockg query` | Triple-pattern match: `-s`/`-p`/`-o`, omit for wildcard |
-| `dockg stats` | Counts, orphan docs, broken links, most-connected docs; `--check` gates CI |
+| `dockg stats` | Counts, orphan docs, broken links, most-connected docs, metadata coverage; `--check` gates CI |
 
-Shared flags: `-c/--config`, `-f/--format pretty|json`; `build` takes `-o/--out`; `query`/`stats`/`check` take `-g/--graph`; `check` takes `--shapes`. SPARQL is a planned upgrade behind `query`.
+Shared flags: `-c/--config`, `-f/--format pretty|json`; `build` takes `-o/--out`; `query`/`stats`/`check` take `-g/--graph`; `check` takes `--shapes`; `stats` takes `--coverage-threshold <pct>`. SPARQL is a planned upgrade behind `query`.
+
+### Metadata coverage
+
+`dockg stats` reports, for each of seven per-document fields (`title`,
+`description`, `creator`, `created`, `modified`, `subject`, `prefLabel`), the
+share of docs that carry it. Because the graph is an index over your docs
+([ADR 01008](adrs/01008-graph-as-index-not-corpus.md)), a field you never lift is
+invisible to anything querying the graph — coverage turns that gap into a number.
+It is measured against the graph, so a date dockg derived from git history counts
+as covered. `stats.coverageThreshold` (or `--coverage-threshold <pct>` for a
+uniform value) makes `stats --check` exit 1 when a gated field falls short; unset,
+coverage is reported but never gates.
 
 ## Configuration
 
@@ -275,6 +288,12 @@ build:
 provenance:
   git: auto          # auto | true | false — per-file git dates/authors, rename revisions, build endedAtTime
   qualified: true    # qualified attribution/association nodes with roles
+stats:
+  # Minimum metadata coverage under `stats --check`. A number applies to every
+  # field; a map gates named fields only. Default {} gates nothing.
+  coverageThreshold:
+    title: 100
+    description: 50
 # validate.schemas defaults to the bundled schemas/frontmatter-0.4.json
 # check.shapes defaults to the bundled shapes/dockg-0.1.ttl
 fill:

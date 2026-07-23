@@ -123,21 +123,31 @@ regenerated (8 qualified-provenance triples, diff inspected), CLAUDE.md
 determinism invariant amended, README provenance section + config sample +
 opinionated-defaults statement, `dockg init` template.
 
-## Phase 1 — Metadata coverage in `stats`
+## Phase 1 — Metadata coverage in `stats` — **done**
 
 **Goal:** make the lifted/unlifted boundary measurable (the evaporation
 countermeasure), before new vocabulary lands.
 
-Decisions to make (ADR):
-- Field list and predicate mapping to measure; report shape (counts +
-  percentages), rounding rule, empty-graph semantics.
-- Enforcement: threshold knob (`stats.coverageThreshold`?) folded into the
-  existing `--check` gate vs. report-only. A threshold has no universally
-  correct value — decide the default (0 = report-only is the conservative
-  candidate) against the opinionated-defaults mandate.
+Decided ([ADR 01011](adrs/01011-metadata-coverage-in-stats.md)):
+- **Seven fixed fields** — `title`, `description`, `creator`, `created`,
+  `modified`, `subject`, `prefLabel` (`language` dropped as near-universally
+  0% noise). Measured against the graph, so git-derived values count. A fixed
+  list, not a dynamic census, so an absent-everywhere field still shows 0%.
+- **Report shape**: counts + one-decimal percentages, empty graph vacuously
+  100%. Pretty block + ordered JSON array.
+- **Per-field thresholds** with a uniform number as shorthand; a uniform-only
+  gate would be dominated by whichever field a corpus legitimately never sets
+  (`prefLabel`/`creator` at 25% in the corpus). CLI `--coverage-threshold`
+  sets the uniform form; the map is config-only.
+- **No gate by default** (`{}`) — reporting is on, enforcement is opt-in per
+  ADR 01009.
 
-Deliverables: coverage block in `stats` (pretty + JSON), config knob per the
-schema-first pattern, corpus-exact integration tests, README/`--help` docs.
+Delivered: `src/core/coverage.ts` (shared field list), coverage in `stats`
+(pretty + JSON) and its `--check` gate, `stats.coverageThreshold` config knob,
+`--coverage-threshold` flag, a schema-sync drift guard pinning the field list
+to the config schema, corpus-exact tests, README (coverage subsection, config
+sample, commands table) + `dockg init` template + `--help`. Shapes and golden
+untouched — `stats` only reads the graph.
 
 ## Phase 2 — iiRDS Core vocabulary adoption
 
