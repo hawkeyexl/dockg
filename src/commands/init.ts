@@ -45,13 +45,13 @@ provenance:
   qualified: true
 
 # Schemas \`dockg validate\` checks via docmeta. Default: the frontmatter
-# schema bundled with dockg (schemas/frontmatter-0.4.json). Override with
+# schema bundled with dockg (schemas/frontmatter-0.5.json). Override with
 # file paths, URLs, or docmeta built-in ids:
 # validate:
 #   schemas: ["./my-schema.json"]
 
 # SHACL shapes \`dockg check\` validates the built graph against. Default:
-# the shapes contract bundled with dockg (shapes/dockg-0.1.ttl).
+# the shapes contract bundled with dockg (shapes/dockg-0.2.ttl).
 # check:
 #   shapes: ["./my-shapes.ttl"]
 

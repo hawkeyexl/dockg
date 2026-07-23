@@ -1,6 +1,8 @@
 @prefix dcterms: <http://purl.org/dc/terms/> .
 @prefix dockg: <https://dockg.dev/ns#> .
 @prefix foaf: <http://xmlns.com/foaf/0.1/> .
+@prefix iirds: <http://iirds.tekom.de/iirds#> .
+@prefix iirdsSft: <http://iirds.tekom.de/iirds/domain/software#> .
 @prefix prov: <http://www.w3.org/ns/prov#> .
 @prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
 @prefix schema: <https://schema.org/> .
@@ -47,6 +49,9 @@
   skos:prefLabel "setup" .
 
 <https://example.com/kg/doc/docs/configuration.md> a prov:Entity, dockg:Document ;
+  iirds:has-subject iirdsSft:Interface ;
+  iirds:has-topic-type iirds:GenericReference ;
+  iirds:relates-to-product-variant <https://example.com/kg/product/sp-x100>, <https://example.com/kg/product/sp-x200> ;
   dcterms:hasPart <https://example.com/kg/doc/docs/configuration.md#configuration> ;
   dcterms:references <https://example.com/kg/doc/docs/getting-started.md>, <https://example.com/kg/doc/docs/getting-started.md#install>, <https://json-schema.org/> ;
   dcterms:subject <https://example.com/kg/concept/configuration>, <https://example.com/kg/concept/reference> ;
@@ -72,6 +77,8 @@
   dockg:order 1 .
 
 <https://example.com/kg/doc/docs/getting-started.md> a prov:Entity, dockg:Document ;
+  iirds:has-topic-type iirds:GenericTask ;
+  iirds:relates-to-product-lifecycle-phase iirdsSft:Deployment ;
   dcterms:created "2026-05-01"^^xsd:date ;
   dcterms:creator <https://example.com/kg/agent/person/jane-doe> ;
   dcterms:description "Install and configure the tool." ;
@@ -132,6 +139,12 @@
 
 <https://example.com/kg/graph> a prov:Entity ;
   prov:wasGeneratedBy <https://example.com/kg/activity/build> .
+
+<https://example.com/kg/product/sp-x100> a iirds:ProductVariant ;
+  dcterms:title "SP-X100" .
+
+<https://example.com/kg/product/sp-x200> a iirds:ProductVariant ;
+  dcterms:title "SP-X200" .
 
 <https://example.com/kg/scheme> a skos:ConceptScheme ;
   dcterms:title "dockg concepts" .

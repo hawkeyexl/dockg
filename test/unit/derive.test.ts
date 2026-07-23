@@ -602,6 +602,68 @@ describe("deriveGraph — kg sub-key (SKOS fields)", () => {
   });
 });
 
+describe("deriveGraph — iiRDS Core/Software typing (ADR 01012)", () => {
+  it("references the published topic-type IRI", () => {
+    const g = graph({ "docs/a.md": "---\nkg:\n  topicType: task\n---\n" });
+    expect(
+      has(g, DOC, `${NS.iirds}has-topic-type`, iri(`${NS.iirds}GenericTask`)),
+    ).toBe(true);
+  });
+
+  it("mints a ProductVariant node per appliesTo label", () => {
+    const g = graph({
+      "docs/a.md": "---\nkg:\n  appliesTo: [SP-X100, SP-X200]\n---\n",
+    });
+    for (const [slug, label] of [
+      ["sp-x100", "SP-X100"],
+      ["sp-x200", "SP-X200"],
+    ] as const) {
+      const v = `${BASE}product/${slug}`;
+      expect(has(g, DOC, `${NS.iirds}relates-to-product-variant`, iri(v))).toBe(
+        true,
+      );
+      expect(has(g, v, `${NS.rdf}type`, iri(`${NS.iirds}ProductVariant`))).toBe(
+        true,
+      );
+      expect(has(g, v, `${NS.dcterms}title`, lit(label))).toBe(true);
+    }
+  });
+
+  it("splits software-domain values across their two predicates", () => {
+    const g = graph({
+      "docs/a.md":
+        "---\nkg:\n  softwareLifecyclePhase: [deployment, update]\n  softwareSubject: [interface]\n---\n",
+    });
+    expect(
+      has(
+        g,
+        DOC,
+        `${NS.iirds}relates-to-product-lifecycle-phase`,
+        iri(`${NS.iirdsSft}Deployment`),
+      ),
+    ).toBe(true);
+    expect(
+      has(
+        g,
+        DOC,
+        `${NS.iirds}relates-to-product-lifecycle-phase`,
+        iri(`${NS.iirdsSft}Update`),
+      ),
+    ).toBe(true);
+    expect(
+      has(g, DOC, `${NS.iirds}has-subject`, iri(`${NS.iirdsSft}Interface`)),
+    ).toBe(true);
+  });
+
+  it("emits no iiRDS triples when the kg key is absent", () => {
+    const g = graph({ "docs/a.md": "# A\n" });
+    expect(g.some((q) => q.p.startsWith(NS.iirds))).toBe(false);
+    expect(
+      g.some((q) => q.o.kind === "iri" && q.o.value.startsWith(NS.iirdsSft)),
+    ).toBe(false);
+  });
+});
+
 describe("deriveGraph — images, code, derive toggles", () => {
   it("maps images and code languages", () => {
     const g = graph({

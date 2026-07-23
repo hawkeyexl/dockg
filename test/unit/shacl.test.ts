@@ -148,6 +148,36 @@ describe("validateGraph", () => {
     expect(hit!.docs).toEqual(["docs/a.md"]);
   });
 
+  it("accepts a published iiRDS topic type and a ProductVariant node", async () => {
+    const d = doc("docs/a.md");
+    const v = `${BASE}product/sp-x200`;
+    const store = build([
+      ...conformingTriples(),
+      [d, `${NS.iirds}has-topic-type`, `${NS.iirds}GenericTask`],
+      [d, `${NS.iirds}relates-to-product-variant`, v],
+      [v, RDF_TYPE, `${NS.iirds}ProductVariant`],
+      [v, `${NS.dcterms}title`, { lit: "SP-X200" }],
+      [d, `${NS.iirds}has-subject`, `${NS.iirdsSft}Interface`],
+    ]);
+    expect(await validateGraph(store, SHAPES)).toEqual([]);
+  });
+
+  it("rejects a topic-type IRI outside the published set (sh:in)", async () => {
+    const d = doc("docs/a.md");
+    const store = build([
+      ...conformingTriples(),
+      // Not one of the six iirds:Generic* instances.
+      [d, `${NS.iirds}has-topic-type`, `${NS.iirds}GenericNonsense`],
+    ]);
+    const findings = await validateGraph(store, SHAPES);
+    const hit = findings.find(
+      (f) => f.focusNode === d && f.path === `${NS.iirds}has-topic-type`,
+    );
+    expect(hit).toBeDefined();
+    expect(hit!.severity).toBe("violation");
+    expect(hit!.docs).toEqual(["docs/a.md"]);
+  });
+
   it("detects a two-node skos:broader cycle", async () => {
     const store = build([
       ...conformingTriples(),

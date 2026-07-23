@@ -7,6 +7,9 @@ kg:
   broader: [Administration]
   related: [Installation]
   subjects: [reference]
+  topicType: reference
+  appliesTo: [SP-X100, SP-X200]
+  softwareSubject: [interface]
 ---
 
 # Configuration

@@ -54,6 +54,15 @@ export function mintConceptIri(base: string, label: string): string {
   return `${base}concept/${encodeSegment(conceptSlug(label))}`;
 }
 
+/**
+ * `{base}product/{slug(label)}` — iiRDS ProductVariant nodes (kg.appliesTo).
+ * Separate `product/` segment so a product and a concept sharing a label
+ * cannot converge on one IRI.
+ */
+export function mintProductIri(base: string, label: string): string {
+  return `${base}product/${encodeSegment(conceptSlug(label))}`;
+}
+
 /** The single skos:ConceptScheme node for the graph. */
 export function mintSchemeIri(base: string): string {
   return `${base}scheme`;

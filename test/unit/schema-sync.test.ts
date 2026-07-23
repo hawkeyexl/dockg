@@ -5,6 +5,11 @@ import { describe, expect, it } from "vitest";
 import { bundledSchemaPath } from "../../src/core/pkg.js";
 import { FIELD_SCHEMAS } from "../../src/llm/prompt.js";
 import { COVERAGE_FIELD_NAMES } from "../../src/core/coverage.js";
+import {
+  SOFTWARE_LIFECYCLE_IRIS,
+  SOFTWARE_SUBJECT_IRIS,
+  TOPIC_TYPE_IRIS,
+} from "../../src/core/iirds.js";
 
 /**
  * Drift guard: fill's proposal field schemas must stay a subset of the
@@ -84,5 +89,41 @@ describe("COVERAGE_FIELD_NAMES ↔ config schema", () => {
     expect(Object.keys(mapForm!.properties!).sort()).toEqual(
       [...COVERAGE_FIELD_NAMES].sort(),
     );
+  });
+});
+
+/**
+ * Drift guard: each iiRDS frontmatter enum in the bundled schema must name
+ * exactly the keys of its src/core/iirds.ts map, or a valid frontmatter value
+ * would derive no triple (or Ajv would reject a mapped one). ADR 01012.
+ */
+describe("iiRDS enums ↔ bundled schema", () => {
+  const kg = (
+    JSON.parse(readFileSync(bundledSchemaPath(import.meta.url), "utf8")) as {
+      properties: {
+        kg: {
+          properties: Record<
+            string,
+            { enum?: string[]; items?: { enum?: string[] } }
+          >;
+        };
+      };
+    }
+  ).properties.kg.properties;
+
+  it.each([
+    ["topicType", () => kg.topicType!.enum, TOPIC_TYPE_IRIS],
+    [
+      "softwareLifecyclePhase",
+      () => kg.softwareLifecyclePhase!.items!.enum,
+      SOFTWARE_LIFECYCLE_IRIS,
+    ],
+    [
+      "softwareSubject",
+      () => kg.softwareSubject!.items!.enum,
+      SOFTWARE_SUBJECT_IRIS,
+    ],
+  ] as const)("%s enum matches its IRI map keys", (_name, getEnum, map) => {
+    expect([...(getEnum() ?? [])].sort()).toEqual(Object.keys(map).sort());
   });
 });

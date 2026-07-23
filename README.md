@@ -50,7 +50,7 @@ Exit codes: `0` ok · `1` findings (validation failures, `check` violations, `st
 
 ## What gets derived
 
-Standard vocabularies wherever a term exists — Dublin Core (`dcterms:`), SKOS (`skos:`), schema.org (`schema:`), FOAF (`foaf:`) — plus a minimal custom namespace `dockg: <https://dockg.dev/ns#>` (2 classes, 5 properties).
+Standard vocabularies wherever a term exists — Dublin Core (`dcterms:`), SKOS (`skos:`), schema.org (`schema:`), FOAF (`foaf:`), and iiRDS (`iirds:`, `iirdsSft:`) for technical-documentation semantics — plus a minimal custom namespace `dockg: <https://dockg.dev/ns#>` (2 classes, 5 properties).
 
 | Source | Triples |
 |---|---|
@@ -64,13 +64,16 @@ Standard vocabularies wherever a term exists — Dublin Core (`dcterms:`), SKOS 
 | external links | `dcterms:references <url>` |
 | images | `schema:image` |
 | code fence languages | `dockg:codeLanguage "python"` |
+| `kg.topicType` | `iirds:has-topic-type` → the matching iiRDS Core instance (`iirds:GenericTask`, …) |
+| `kg.appliesTo` | `iirds:relates-to-product-variant` → minted `iirds:ProductVariant` nodes (`dcterms:title` label) |
+| `kg.softwareLifecyclePhase` / `kg.softwareSubject` | iiRDS Software domain — `iirds:relates-to-product-lifecycle-phase` / `iirds:has-subject` → published `iirdsSft:` instances |
 | `kg:` frontmatter | see below |
 
 Note: the emitted `schema:` prefix is `https://schema.org/` (the current recommendation); merge legacy `http://schema.org/` data with `owl:sameAs` handling if you need to.
 
 ## The `kg:` frontmatter key
 
-**Naming:** the *frontmatter key* is `kg:`; the *RDF namespace prefix* is `dockg:`. The `kg` key holds the SKOS fields dockg owns, validated by the JSON Schema published in this repo (`schemas/frontmatter-0.4.json`). Docs without a `kg` key are fine — everything above still derives.
+**Naming:** the *frontmatter key* is `kg:`; the *RDF namespace prefix* is `dockg:`. The `kg` key holds the SKOS fields dockg owns plus iiRDS typing, validated by the JSON Schema published in this repo (`schemas/frontmatter-0.5.json`). Docs without a `kg` key are fine — everything above still derives.
 
 ```yaml
 ---
@@ -83,8 +86,17 @@ kg:
   narrower: [Environment Variables]
   related: [Installation]         # -> skos:related
   subjects: [reference]           # -> dcterms:subject (like tags)
+  # iiRDS typing (all optional; values are closed controlled vocabularies):
+  topicType: reference            # task|concept|reference|learning|troubleshooting|form
+  appliesTo: [SP-X100, SP-X200]   # -> iirds:ProductVariant nodes this doc applies to
+  softwareLifecyclePhase: [deployment]  # administration|customization|update|deployment|integration|deinstallation
+  softwareSubject: [interface]    # architecture|interface|system-requirement
 ---
 ```
+
+The iiRDS values reference published iiRDS instance IRIs directly — dockg never
+bundles or alters the iiRDS vocabulary (it is CC BY-ND). `topicType` is a single
+value; the other three are lists. See [ADR 01012](adrs/01012-iirds-core-vocabulary.md).
 
 ## Example output
 
@@ -294,8 +306,8 @@ stats:
   coverageThreshold:
     title: 100
     description: 50
-# validate.schemas defaults to the bundled schemas/frontmatter-0.4.json
-# check.shapes defaults to the bundled shapes/dockg-0.1.ttl
+# validate.schemas defaults to the bundled schemas/frontmatter-0.5.json
+# check.shapes defaults to the bundled shapes/dockg-0.2.ttl
 fill:
   provider: anthropic
   temperature: 0
@@ -308,18 +320,23 @@ fill:
 ## Related standards
 
 Beyond the vocabularies dockg already emits (Dublin Core, SKOS, PROV-O,
-schema.org, FOAF), these standards inform where dockg is headed:
+schema.org, FOAF):
 
-- **[iiRDS](https://iirds.org/) 1.3** — the intelligent information Request and
+- **[iiRDS](https://iirds.org/)** — the intelligent information Request and
   Delivery Standard (tekom): the technical-communication industry's RDF
-  vocabulary for documentation semantics, covering topic typing
-  (task/concept/reference), product-variant applicability, and delivery
-  packages. dockg references published iiRDS IRIs where a term fits. The spec
-  is licensed CC BY-ND, so it is never vendored into this repo or modified —
-  only referenced.
-- **DIN SPEC 91526** — knowledge graphs for language models, and integrating
-  iiRDS into the Asset Administration Shell. Tracked as a modeling reference
-  for graphs built to be consumed by LLMs.
+  vocabulary for documentation semantics. Namespace
+  `http://iirds.tekom.de/iirds#` (Core, stable across versions) plus the
+  Software domain `http://iirds.tekom.de/iirds/domain/software#`. dockg emits
+  Core topic typing and product-variant applicability, and the Software
+  domain's lifecycle-phase and subject classifications (see the `kg:` section).
+  Only published IRIs are *referenced* — the spec is CC BY-ND, so the
+  vocabulary is never vendored, re-serialized, or modified in this repo.
+- **DIN SPEC 91526** — "Knowledge Graphs for Language Models and Language
+  Models for Knowledge Graphs" (DIN Media, 2025): a general pre-standardization
+  spec on grounding LLMs with knowledge graphs. It is *not* an iiRDS document
+  and does not integrate iiRDS into the Asset Administration Shell (that is the
+  separate IDTA iiRDS Submodel, IDTA 02063-1-0). Tracked as conceptual backdrop
+  for the graph-grounds-LLM thesis, not a contract dockg conforms to.
 - **[QUDT](https://qudt.org/)** — quantities, units, and dimensions. Relevant
   if dockg ever lifts quantitative properties (sizes, tolerances) into the
   graph.

@@ -16,11 +16,22 @@ import {
   mintConceptIri,
   mintDocIri,
   mintGraphIri,
+  mintProductIri,
   mintSchemeIri,
   mintSectionIri,
   normalizeDocPath,
 } from "./iri.js";
 import { NS, RDF_TYPE, ROLE } from "./vocab.js";
+import {
+  IIRDS_HAS_SUBJECT,
+  IIRDS_HAS_TOPIC_TYPE,
+  IIRDS_PRODUCT_VARIANT,
+  IIRDS_RELATES_TO_LIFECYCLE_PHASE,
+  IIRDS_RELATES_TO_PRODUCT_VARIANT,
+  SOFTWARE_LIFECYCLE_IRIS,
+  SOFTWARE_SUBJECT_IRIS,
+  TOPIC_TYPE_IRIS,
+} from "./iirds.js";
 
 /**
  * Resolve a provenance target (`kg.derivedFrom` / `kg.revisionOf` entry) to a
@@ -301,6 +312,29 @@ export function deriveGraph(docs: DocModel[], options: DeriveOptions): Quad[] {
               add(topic, `${NS.skos}${rel}`, iri(concept(label)));
             }
           }
+        }
+
+        // iiRDS Core topic type: reference the published instance IRI (ADR 01012).
+        const topicType = asString(k["topicType"]);
+        const topicTypeIri = topicType && TOPIC_TYPE_IRIS[topicType];
+        if (topicTypeIri) add(docIri, IIRDS_HAS_TOPIC_TYPE, iri(topicTypeIri));
+
+        // iiRDS product/variant applicability: mint a ProductVariant per label.
+        for (const label of asStringArray(k["appliesTo"])) {
+          const variant = mintProductIri(baseIri, label);
+          add(docIri, IIRDS_RELATES_TO_PRODUCT_VARIANT, iri(variant));
+          add(variant, RDF_TYPE, iri(IIRDS_PRODUCT_VARIANT));
+          add(variant, `${NS.dcterms}title`, lit(label));
+        }
+
+        // iiRDS Software domain: two dimensions, two predicates (ADR 01012).
+        for (const value of asStringArray(k["softwareLifecyclePhase"])) {
+          const phase = SOFTWARE_LIFECYCLE_IRIS[value];
+          if (phase) add(docIri, IIRDS_RELATES_TO_LIFECYCLE_PHASE, iri(phase));
+        }
+        for (const value of asStringArray(k["softwareSubject"])) {
+          const subject = SOFTWARE_SUBJECT_IRIS[value];
+          if (subject) add(docIri, IIRDS_HAS_SUBJECT, iri(subject));
         }
       }
     }
