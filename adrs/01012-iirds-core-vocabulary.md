@@ -124,11 +124,14 @@ Every IRI is byte-verified against the raw `iirds-core.rdf` /
 `iirds-software.rdf`. `test/unit/schema-sync.test.ts` pins each schema enum to
 its `src/core/iirds.ts` map so they cannot drift. `test/unit/derive.test.ts`
 asserts the emitted predicate/object for each field and that an absent `kg`
-key emits no iiRDS triples. `dockg validate` rejects out-of-enum values;
-`test/fixtures/check-violations/` carries a doc whose value is outside the
-shape's `sh:in`, and `test/integration/check.test.ts` confirms the clean
-corpus still exits 0 against `dockg-0.2.ttl`. The determinism gates
-(double-build, version-normalized golden, n3 round-trip) cover the new triples.
+key emits no iiRDS triples. `dockg validate` rejects out-of-enum values.
+`dockg build` can only ever emit the published IRIs, so the `sh:in` gate is
+exercised at the shapes layer instead: `test/unit/shacl.test.ts` validates a
+hand-built graph with an out-of-set topic-type IRI and asserts a violation
+(and a conforming iiRDS graph with no findings), while
+`test/integration/check.test.ts` confirms the clean corpus still exits 0
+against `dockg-0.2.ttl`. The determinism gates (double-build,
+version-normalized golden, n3 round-trip) cover the new triples.
 
 ## Pros and Cons of the Options
 

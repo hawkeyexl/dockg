@@ -4,7 +4,7 @@ Deterministic knowledge graphs derived from documentation frontmatter and format
 
 `dockg` reads your docs — Markdown first — and derives an RDF knowledge graph from what is already there: frontmatter fields, heading structure, links between pages, tags, images, and code blocks. The build is **deterministic**: stable IRIs, sorted serialization, byte-identical rebuilds. The emitted `.ttl` diffs cleanly in git, so the graph can live next to the docs it describes.
 
-It pairs with [docmeta](https://github.com/hawkeyexl/docmeta) (which powers `dockg validate`) and follows the same CLI conventions as [docevals](https://github.com/hawkeyexl/docevals). dockg's frontmatter schema is published in this repo at [`schemas/frontmatter-0.4.json`](schemas/frontmatter-0.4.json) — point any JSON Schema tool at it, e.g. `docmeta validate --schema node_modules/dockg/schemas/frontmatter-0.4.json docs/`.
+It pairs with [docmeta](https://github.com/hawkeyexl/docmeta) (which powers `dockg validate`) and follows the same CLI conventions as [docevals](https://github.com/hawkeyexl/docevals). dockg's frontmatter schema is published in this repo at [`schemas/frontmatter-0.5.json`](schemas/frontmatter-0.5.json) — point any JSON Schema tool at it, e.g. `docmeta validate --schema node_modules/dockg/schemas/frontmatter-0.5.json docs/`.
 
 ## What the graph is (and isn't)
 
@@ -181,9 +181,9 @@ values, and the machine-attribution disappears from the graph. That makes
 "which parts of my taxonomy did an LLM propose?" a one-liner:
 `dockg query -p dockg:filledField`.
 
-These fields are validated by **`schemas/frontmatter-0.4.json`** (bundled with
+These fields are validated by **`schemas/frontmatter-0.5.json`** (bundled with
 the package; the default for `dockg validate`). Earlier versions
-(`frontmatter-0.1.json` through `frontmatter-0.3.json`) remain published
+(`frontmatter-0.1.json` through `frontmatter-0.4.json`) remain published
 alongside it.
 
 ## Graph validation (SHACL)
@@ -194,7 +194,7 @@ alongside it.
 dockg build && dockg check
 ```
 
-The rules live in a published SHACL shapes contract, [`shapes/dockg-0.1.ttl`](shapes/dockg-0.1.ttl), bundled with the package (override with `check.shapes` or `--shapes`). Like the frontmatter schemas, published shapes files are immutable — the contract evolves by adding a new version file. Point any SHACL tool at it to validate your own merged graphs against the same rules.
+The rules live in a published SHACL shapes contract, [`shapes/dockg-0.2.ttl`](shapes/dockg-0.2.ttl), bundled with the package (override with `check.shapes` or `--shapes`). Like the frontmatter schemas, published shapes files are immutable — the contract evolves by adding a new version file. Point any SHACL tool at it to validate your own merged graphs against the same rules.
 
 What it catches:
 
@@ -258,8 +258,8 @@ dockg fill --force            # overwrite human-set kg fields too
 |---|---|
 | `dockg init` | Scaffold a starter `dockg.config.yaml` |
 | `dockg build [globs]` | Derive the graph and write deterministic Turtle |
-| `dockg validate [globs]` | Check KG frontmatter via docmeta (bundled `schemas/frontmatter-0.4.json`) |
-| `dockg check` | Validate the built graph against the SHACL shapes (bundled `shapes/dockg-0.1.ttl`) |
+| `dockg validate [globs]` | Check KG frontmatter via docmeta (bundled `schemas/frontmatter-0.5.json`) |
+| `dockg check` | Validate the built graph against the SHACL shapes (bundled `shapes/dockg-0.2.ttl`) |
 | `dockg fill [globs]` | Propose SKOS `kg:` fields with an LLM and write them back |
 | `dockg query` | Triple-pattern match: `-s`/`-p`/`-o`, omit for wildcard |
 | `dockg stats` | Counts, orphan docs, broken links, most-connected docs, metadata coverage; `--check` gates CI |

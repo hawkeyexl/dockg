@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { bundledSchemaPath } from "../../src/core/pkg.js";
+import { bundledSchemaPath, bundledShapesPath } from "../../src/core/pkg.js";
 import { FIELD_SCHEMAS } from "../../src/llm/prompt.js";
 import { COVERAGE_FIELD_NAMES } from "../../src/core/coverage.js";
 import {
@@ -125,5 +125,33 @@ describe("iiRDS enums ↔ bundled schema", () => {
     ],
   ] as const)("%s enum matches its IRI map keys", (_name, getEnum, map) => {
     expect([...(getEnum() ?? [])].sort()).toEqual(Object.keys(map).sort());
+  });
+});
+
+/**
+ * Drift guard: the README names the bundled-default schema and shapes files as
+ * a user-facing fact. Each bundled-path bump left stale version numbers behind
+ * (caught twice in review); pin the current-state README references to the
+ * actual bundled filenames so a future bump fails here instead of shipping a
+ * wrong doc.
+ */
+describe("README bundled-default references ↔ pkg.ts", () => {
+  const readme = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), "..", "..", "README.md"),
+    "utf8",
+  );
+  const schemaFile = bundledSchemaPath(import.meta.url)
+    .split(/[/\\]/)
+    .pop()!;
+  const shapesFile = bundledShapesPath(import.meta.url)
+    .split(/[/\\]/)
+    .pop()!;
+
+  it("names the current bundled schema file", () => {
+    expect(readme).toContain(`schemas/${schemaFile}`);
+  });
+
+  it("names the current bundled shapes file", () => {
+    expect(readme).toContain(`shapes/${shapesFile}`);
   });
 });

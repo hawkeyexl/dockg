@@ -21,9 +21,9 @@ describe("parseConfig", () => {
       "code",
       "provenance",
     ]);
-    // empty = use the schema bundled with dockg (schemas/frontmatter-0.4.json)
+    // empty = use the schema bundled with dockg (schemas/frontmatter-0.5.json)
     expect(c.validate.schemas).toEqual([]);
-    // empty = use the shapes bundled with dockg (shapes/dockg-0.1.ttl)
+    // empty = use the shapes bundled with dockg (shapes/dockg-0.2.ttl)
     expect(c.check.shapes).toEqual([]);
     expect(c.fill.validateGraph).toBe(true);
     // Opinionated defaults (ADR 01009/01010): hermetic provenance ships on;
