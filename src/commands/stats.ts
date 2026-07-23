@@ -142,12 +142,12 @@ export function runStats(opts: StatsOptions = {}): StatsReport {
     return { field, predicate: compactIri(iri), docs, pct: round1(ratio) };
   });
 
-  // A uniform --coverage-threshold overrides the resolved config map.
+  // A uniform --coverage-threshold overrides the resolved config map. Bind it
+  // to a local first so the null-narrowing survives the .map() closure.
+  const uniform = opts.coverageThreshold;
   const thresholds =
-    opts.coverageThreshold != null
-      ? Object.fromEntries(
-          coverage.map((c) => [c.field, opts.coverageThreshold!]),
-        )
+    uniform != null
+      ? Object.fromEntries(coverage.map((c) => [c.field, uniform]))
       : config.stats.coverageThreshold;
   const coverageFindings = coverage
     .filter(
