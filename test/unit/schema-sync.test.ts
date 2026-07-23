@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { bundledSchemaPath, bundledShapesPath } from "../../src/core/pkg.js";
 import { FIELD_SCHEMAS } from "../../src/llm/prompt.js";
@@ -140,12 +140,8 @@ describe("README bundled-default references ↔ pkg.ts", () => {
     join(dirname(fileURLToPath(import.meta.url)), "..", "..", "README.md"),
     "utf8",
   );
-  const schemaFile = bundledSchemaPath(import.meta.url)
-    .split(/[/\\]/)
-    .pop()!;
-  const shapesFile = bundledShapesPath(import.meta.url)
-    .split(/[/\\]/)
-    .pop()!;
+  const schemaFile = basename(bundledSchemaPath(import.meta.url));
+  const shapesFile = basename(bundledShapesPath(import.meta.url));
 
   it("names the current bundled schema file", () => {
     expect(readme).toContain(`schemas/${schemaFile}`);
