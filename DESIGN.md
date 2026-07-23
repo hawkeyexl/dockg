@@ -149,41 +149,44 @@ to the config schema, corpus-exact tests, README (coverage subsection, config
 sample, commands table) + `dockg init` template + `--help`. Shapes and golden
 untouched — `stats` only reads the graph.
 
-## Phase 2 — iiRDS Core vocabulary adoption
+## Phase 2 — iiRDS Core (+ Software domain) vocabulary adoption — **done**
 
 **Goal:** dockg graphs speak the tech-comm industry's RDF dialect where a
 term fits.
 
-Research first (do not decide before this is done):
-- **iiRDS Core vocabulary survey**: which Core classes/properties map onto
-  dockg concepts — candidates: `iirds:InformationUnit`/`Topic`/`Fragment` vs
-  `dockg:Document`/`Section`; topic types (task/concept/reference/learning);
-  `iirds:relates-to-product-variant` / product metadata for applicability;
-  docs-lifecycle/status terms. Output: a mapping table (dockg concept →
-  iiRDS IRI → adopt/skip + why).
-- **Domain extensions**: iiRDS ships a machinery domain extension; research
-  whether **software-specific extensions or profiles exist or are emerging**
-  (iiRDS for software documentation, iiRDS/H, consortium working drafts,
-  iiRDS Open Toolkit conventions) and whether any is worth adopting or
-  tracking. If none exists, decide whether dockg's own mapping should be
-  publishable as a de-facto software profile.
-- **iiRDS 1.3 validation assets**: are there official SHACL shapes for iiRDS
-  conformance dockg could run or align with?
-- Exact namespace IRIs and version pinning strategy (iiRDS versions its
-  vocabulary; decide how dockg tracks releases).
+Research findings (three parallel agents, byte-verified against
+`iirds-consortium/models`) that shaped or corrected the plan:
+- Namespace `http://iirds.tekom.de/iirds#` is **stable across versions** —
+  hardcoded, not version-pinned.
+- License is **CC BY-ND 4.0**: reference published IRIs; never vendor or
+  re-serialize the vocabulary.
+- A **Software domain exists** (`.../domain/software#`, iiRDS 1.2) — the earlier
+  assumption that none did was wrong. Its 9 values split across two predicates
+  (6 lifecycle phases, 3 subjects). Adopted this phase.
+- **No official SHACL** — dockg authors its own (as it already does).
+- **DIN SPEC 91526 was mischaracterized** here and in the README: it is a
+  general KG-for-LLMs DIN SPEC, not iiRDS and not the AAS integration (that is
+  IDTA 02063-1-0). Corrected.
 
-Decisions to make (ADRs):
-- Which Core terms to adopt now; typing strategy (additional `rdf:type` on
-  existing nodes vs. properties only).
-- New `kg:` frontmatter fields (e.g. `topicType`, `appliesTo`) and their
-  enum domains; new schema version (`frontmatter-0.5.json`).
-- Shapes version bump (`shapes/dockg-0.2.ttl`) — closed shapes must learn
-  every new predicate; the clean-corpus `check` gate stays green.
-- Defaults: derive on by default (per mandate) — record the golden impact.
+Decided ([ADR 01012](adrs/01012-iirds-core-vocabulary.md)):
+- **Topic types** (`kg.topicType`, closed enum of 6) → `iirds:has-topic-type`
+  referencing the published `iirds:Generic*` IRIs. No `a iirds:Topic`, no
+  `skos:Concept` mirror.
+- **Product applicability** (`kg.appliesTo`, list) → minted
+  `iirds:ProductVariant` nodes via `iirds:relates-to-product-variant`, labeled
+  with `dcterms:title`.
+- **Software domain** — two keys mirroring the two predicates:
+  `kg.softwareLifecyclePhase` (6) → `iirds:relates-to-product-lifecycle-phase`,
+  `kg.softwareSubject` (3) → `iirds:has-subject`, both referencing `iirdsSft:`
+  IRIs.
 
-Deliverables: `iirds:` in the namespace table, derive support, schema 0.5,
-shapes 0.2, corpus permutations for every new field (incl. off/absent
-forms), README vocabulary table + init template + `--help`.
+Delivered: `src/core/iirds.ts` (byte-verified IRI maps), `iirds:`/`iirdsSft:`
+namespaces, schema `frontmatter-0.5.json`, shapes `dockg-0.2.ttl` (four new
+closed Document predicates + a ProductVariant shape, `sh:in`-constrained),
+derive support, schema-sync drift guards for all three enums, corpus
+permutations + regenerated golden, and the README/init/DIN-SPEC-correction
+docs. Node-level `rdf:type iirds:Topic` and the information-unit hierarchy were
+deliberately not adopted (see the ADR).
 
 ## Phase 3 — Section-level metadata
 

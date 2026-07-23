@@ -16,6 +16,11 @@ export {
 } from "./core/coverage.js";
 export { discoverFiles } from "./core/discover.js";
 export {
+  SOFTWARE_LIFECYCLE_IRIS,
+  SOFTWARE_SUBJECT_IRIS,
+  TOPIC_TYPE_IRIS,
+} from "./core/iirds.js";
+export {
   conceptSlug,
   encodeSegment,
   mintAgentIri,
@@ -24,6 +29,7 @@ export {
   mintConceptIri,
   mintDocIri,
   mintGraphIri,
+  mintProductIri,
   mintSchemeIri,
   mintSectionIri,
   normalizeDocPath,

@@ -1,10 +1,15 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { bundledSchemaPath } from "../../src/core/pkg.js";
+import { bundledSchemaPath, bundledShapesPath } from "../../src/core/pkg.js";
 import { FIELD_SCHEMAS } from "../../src/llm/prompt.js";
 import { COVERAGE_FIELD_NAMES } from "../../src/core/coverage.js";
+import {
+  SOFTWARE_LIFECYCLE_IRIS,
+  SOFTWARE_SUBJECT_IRIS,
+  TOPIC_TYPE_IRIS,
+} from "../../src/core/iirds.js";
 
 /**
  * Drift guard: fill's proposal field schemas must stay a subset of the
@@ -84,5 +89,65 @@ describe("COVERAGE_FIELD_NAMES ↔ config schema", () => {
     expect(Object.keys(mapForm!.properties!).sort()).toEqual(
       [...COVERAGE_FIELD_NAMES].sort(),
     );
+  });
+});
+
+/**
+ * Drift guard: each iiRDS frontmatter enum in the bundled schema must name
+ * exactly the keys of its src/core/iirds.ts map, or a valid frontmatter value
+ * would derive no triple (or Ajv would reject a mapped one). ADR 01012.
+ */
+describe("iiRDS enums ↔ bundled schema", () => {
+  const kg = (
+    JSON.parse(readFileSync(bundledSchemaPath(import.meta.url), "utf8")) as {
+      properties: {
+        kg: {
+          properties: Record<
+            string,
+            { enum?: string[]; items?: { enum?: string[] } }
+          >;
+        };
+      };
+    }
+  ).properties.kg.properties;
+
+  it.each([
+    ["topicType", () => kg.topicType!.enum, TOPIC_TYPE_IRIS],
+    [
+      "softwareLifecyclePhase",
+      () => kg.softwareLifecyclePhase!.items!.enum,
+      SOFTWARE_LIFECYCLE_IRIS,
+    ],
+    [
+      "softwareSubject",
+      () => kg.softwareSubject!.items!.enum,
+      SOFTWARE_SUBJECT_IRIS,
+    ],
+  ] as const)("%s enum matches its IRI map keys", (_name, getEnum, map) => {
+    expect([...(getEnum() ?? [])].sort()).toEqual(Object.keys(map).sort());
+  });
+});
+
+/**
+ * Drift guard: the README names the bundled-default schema and shapes files as
+ * a user-facing fact. Each bundled-path bump left stale version numbers behind
+ * (caught twice in review); pin the current-state README references to the
+ * actual bundled filenames so a future bump fails here instead of shipping a
+ * wrong doc.
+ */
+describe("README bundled-default references ↔ pkg.ts", () => {
+  const readme = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), "..", "..", "README.md"),
+    "utf8",
+  );
+  const schemaFile = basename(bundledSchemaPath(import.meta.url));
+  const shapesFile = basename(bundledShapesPath(import.meta.url));
+
+  it("names the current bundled schema file", () => {
+    expect(readme).toContain(`schemas/${schemaFile}`);
+  });
+
+  it("names the current bundled shapes file", () => {
+    expect(readme).toContain(`shapes/${shapesFile}`);
   });
 });
