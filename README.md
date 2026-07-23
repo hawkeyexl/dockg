@@ -170,7 +170,8 @@ values, and the machine-attribution disappears from the graph. That makes
 
 These fields are validated by **`schemas/frontmatter-0.4.json`** (bundled with
 the package; the default for `dockg validate`). Earlier versions
-(`frontmatter-0.1.json`, `frontmatter-0.2.json`) remain published alongside it.
+(`frontmatter-0.1.json` through `frontmatter-0.3.json`) remain published
+alongside it.
 
 ## Graph validation (SHACL)
 
