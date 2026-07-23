@@ -45,7 +45,7 @@ provenance:
   qualified: true
 
 # Schemas \`dockg validate\` checks via docmeta. Default: the frontmatter
-# schema bundled with dockg (schemas/frontmatter-0.3.json). Override with
+# schema bundled with dockg (schemas/frontmatter-0.4.json). Override with
 # file paths, URLs, or docmeta built-in ids:
 # validate:
 #   schemas: ["./my-schema.json"]

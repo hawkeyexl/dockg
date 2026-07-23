@@ -21,7 +21,7 @@ describe("parseConfig", () => {
       "code",
       "provenance",
     ]);
-    // empty = use the schema bundled with dockg (schemas/frontmatter-0.2.json)
+    // empty = use the schema bundled with dockg (schemas/frontmatter-0.4.json)
     expect(c.validate.schemas).toEqual([]);
     // empty = use the shapes bundled with dockg (shapes/dockg-0.1.ttl)
     expect(c.check.shapes).toEqual([]);
