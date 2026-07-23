@@ -7,7 +7,7 @@
 import { resolve } from "node:path";
 import { DataFactory, type Store } from "n3";
 import { loadConfig } from "../core/config.js";
-import { loadGraph } from "../core/load.js";
+import { compactIri, loadGraph } from "../core/load.js";
 import { NS, RDF_TYPE } from "../core/vocab.js";
 import { COVERAGE_FIELDS } from "../core/coverage.js";
 
@@ -68,6 +68,11 @@ function base(iri: string): string {
   return hash === -1 ? iri : iri.slice(0, hash);
 }
 
+/** Round a percentage to one decimal place for display. */
+function round1(pct: number): number {
+  return Math.round(pct * 10) / 10;
+}
+
 export function runStats(opts: StatsOptions = {}): StatsReport {
   const cwd = opts.cwd ?? process.cwd();
   const config = loadConfig(opts.config, cwd);
@@ -125,17 +130,17 @@ export function runStats(opts: StatsOptions = {}): StatsReport {
   // against the graph, so git-derived values count (ADR 01008/01011). A
   // zero-document graph is vacuously 100% — no divide-by-zero, no false gate.
   const total = docIris.length;
-  const coverage: CoverageRow[] = COVERAGE_FIELDS.map(
-    ({ field, predicate, iri }) => {
-      let docs = 0;
-      for (const d of docIris) {
-        if (store.countQuads(namedNode(d), namedNode(iri), null, null) > 0)
-          docs++;
-      }
-      const pct = total === 0 ? 100 : Math.round((docs / total) * 1000) / 10;
-      return { field, predicate, docs, pct };
-    },
-  );
+  const coverage: CoverageRow[] = COVERAGE_FIELDS.map(({ field, iri }) => {
+    let docs = 0;
+    for (const d of docIris) {
+      if (store.countQuads(namedNode(d), namedNode(iri), null, null) > 0)
+        docs++;
+    }
+    const ratio = total === 0 ? 100 : (docs / total) * 100;
+    // Report the rounded value; gate on the raw ratio (below) so a corpus at
+    // 79.96% does not clear an 80 threshold on the strength of display rounding.
+    return { field, predicate: compactIri(iri), docs, pct: round1(ratio) };
+  });
 
   // A uniform --coverage-threshold overrides the resolved config map.
   const thresholds =
@@ -145,7 +150,11 @@ export function runStats(opts: StatsOptions = {}): StatsReport {
         )
       : config.stats.coverageThreshold;
   const coverageFindings = coverage
-    .filter((c) => c.field in thresholds && c.pct < thresholds[c.field]!)
+    .filter(
+      (c) =>
+        c.field in thresholds &&
+        (total === 0 ? 100 : (c.docs / total) * 100) < thresholds[c.field]!,
+    )
     .map((c) => ({
       field: c.field,
       pct: c.pct,

@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
+import { hermeticEnv } from "../helpers/git-env.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const cli = join(root, "dist", "cli.js");
@@ -259,7 +260,7 @@ describe("dockg stats — metadata coverage", () => {
     expect(statsIn(fail, ["--check"]).status).toBe(1);
   });
 
-  it("counts git- and frontmatter-derived values alike", () => {
+  it("counts frontmatter-derived values as covered", () => {
     // description present -> 100% for a one-doc corpus.
     const dir = scratch("---\ndescription: Hi.\n---\n\n");
     const { stdout } = statsIn(dir, ["-f", "json"]);
@@ -269,5 +270,51 @@ describe("dockg stats — metadata coverage", () => {
     expect(report.coverage.find((c) => c.field === "description")?.pct).toBe(
       100,
     );
+  });
+
+  it("counts git-derived dates as covered, with no frontmatter date", () => {
+    // The ADR 01011 reason coverage measures the graph, not the frontmatter:
+    // a doc with no `date`/`updated` still covers created/modified once git
+    // provenance supplies them. Needs a real repo and provenance.git: true.
+    const env = hermeticEnv();
+    const dir = mkdtempSync(join(tmpdir(), "dockg-cov-git-"));
+    writeFileSync(
+      join(dir, "dockg.config.yaml"),
+      'version: 1\ninputs: ["*.md"]\nprovenance:\n  git: true\n',
+    );
+    writeFileSync(join(dir, "a.md"), "# A\n\nNo frontmatter, no dates.\n");
+    execFileSync("git", ["init", "-q"], { cwd: dir, env });
+    execFileSync(
+      "git",
+      ["-c", "user.email=t@t", "-c", "user.name=t", "add", "-A"],
+      { cwd: dir, env },
+    );
+    execFileSync(
+      "git",
+      ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "i"],
+      { cwd: dir, env },
+    );
+    execFileSync(
+      process.execPath,
+      [cli, "build", "--out", join(dir, "g.ttl")],
+      { encoding: "utf8", cwd: dir, env },
+    );
+
+    const r = spawnSync(
+      process.execPath,
+      [cli, "stats", "-g", join(dir, "g.ttl"), "-f", "json"],
+      { encoding: "utf8", cwd: dir, env },
+    );
+    const report = JSON.parse(r.stdout) as {
+      coverage: Array<{ field: string; pct: number }>;
+    };
+    const pctOf = (f: string) =>
+      report.coverage.find((c) => c.field === f)?.pct;
+    // Both dates come purely from git here.
+    expect(pctOf("created")).toBe(100);
+    expect(pctOf("modified")).toBe(100);
+    // creator is a git author, also 100%; description was never provided.
+    expect(pctOf("creator")).toBe(100);
+    expect(pctOf("description")).toBe(0);
   });
 });
