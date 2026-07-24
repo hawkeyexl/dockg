@@ -17,14 +17,35 @@ import { applyKgFields } from "./frontmatter-edit.js";
 import { validateGraph, type CheckFinding } from "./shacl.js";
 import { byCodeUnit } from "./sort.js";
 import { NS } from "./vocab.js";
+import {
+  DOCKG_NOT_APPLICABLE_TO_VARIANT,
+  DOCKG_NOT_SOFTWARE_SUBJECT,
+} from "./iirds.js";
 
 const { namedNode, literal, quad } = DataFactory;
 
-/** Proposal fields the guard simulates; others cannot break the shapes. */
-const GUARDED_FIELDS = ["prefLabel", "broader", "narrower", "related"] as const;
+/**
+ * Proposal fields the guard simulates; others cannot break the shapes. The
+ * SKOS relation fields can form cycles/collisions; the applicability fields can
+ * form an appliesTo⨯notApplicableTo (or softwareSubject⨯notSoftwareSubject)
+ * `sh:disjoint` conflict (ADR 01015). topicType/softwareLifecyclePhase carry
+ * only enum constraints, which the proposal JSON schema already enforces, so
+ * they need no structural simulation.
+ */
+const GUARDED_FIELDS = [
+  "prefLabel",
+  "broader",
+  "narrower",
+  "related",
+  "appliesTo",
+  "notApplicableTo",
+  "softwareSubject",
+  "notSoftwareSubject",
+] as const;
 
-/** Concept edges only: the guard cares about the SKOS subgraph, and keeping
- * sections/links/provenance out keeps per-doc simulation cheap and git-free. */
+/** Concept + iiRDS edges: the SKOS subgraph plus the applicability predicates,
+ * all of which derive under the `frontmatter`/`tags` sources. Sections/links/
+ * provenance stay out to keep per-doc simulation cheap and git-free. */
 const GUARD_SOURCES: DeriveSource[] = ["frontmatter", "tags"];
 
 function toStore(quads: Quad[]): Store {
@@ -138,6 +159,19 @@ export class FillGuard {
     if (finding.path === `${NS.skos}narrower`) return hierarchy;
     if (finding.path === `${NS.skos}related`) {
       return proposed.has("related") ? ["related"] : [];
+    }
+    // Negative-scope disjointness (ADR 01014/01015): the finding sits on the
+    // negative predicate's shape. Drop the proposed side of the conflict,
+    // preferring the negative when both were proposed.
+    if (finding.path === DOCKG_NOT_APPLICABLE_TO_VARIANT) {
+      if (proposed.has("notApplicableTo")) return ["notApplicableTo"];
+      if (proposed.has("appliesTo")) return ["appliesTo"];
+      return [];
+    }
+    if (finding.path === DOCKG_NOT_SOFTWARE_SUBJECT) {
+      if (proposed.has("notSoftwareSubject")) return ["notSoftwareSubject"];
+      if (proposed.has("softwareSubject")) return ["softwareSubject"];
+      return [];
     }
     return []; // unattributable — caller rejects everything guarded
   }

@@ -30,7 +30,36 @@ export type DeriveSource =
 export type GitMode = boolean | "auto";
 
 export type FillField =
-  "prefLabel" | "altLabels" | "broader" | "narrower" | "related" | "subjects";
+  // SKOS concept fields
+  | "prefLabel"
+  | "altLabels"
+  | "broader"
+  | "narrower"
+  | "related"
+  | "subjects"
+  // iiRDS typing + negative scope (ADR 01015)
+  | "topicType"
+  | "appliesTo"
+  | "softwareLifecyclePhase"
+  | "softwareSubject"
+  | "notApplicableTo"
+  | "notSoftwareSubject";
+
+/** Every fillable field, in a stable order — the default `fill.fields`. */
+export const ALL_FILL_FIELDS: FillField[] = [
+  "prefLabel",
+  "altLabels",
+  "broader",
+  "narrower",
+  "related",
+  "subjects",
+  "topicType",
+  "appliesTo",
+  "softwareLifecyclePhase",
+  "softwareSubject",
+  "notApplicableTo",
+  "notSoftwareSubject",
+];
 
 export interface Pricing {
   inputPerMTok: number;
@@ -92,6 +121,11 @@ export interface DockgConfig {
     maxCostUsd: number | null;
     cacheDir: string;
     fields: FillField[];
+    /**
+     * Minimum model self-confidence (0..1) to write a proposed field; below
+     * this it is reported but not written (ADR 01015). Default 0.7.
+     */
+    minConfidence: number;
     /** Record kg.provenance on filled docs. */
     writeProvenance: boolean;
     /** Reject proposals that would violate the SHACL shapes contract. */
@@ -228,12 +262,8 @@ export function parseConfig(text: string, configPath: string): DockgConfig {
       temperature: r.fill?.temperature ?? 0,
       maxCostUsd: r.fill?.maxCostUsd === undefined ? 5 : r.fill.maxCostUsd,
       cacheDir: r.fill?.cacheDir ?? ".dockg/cache",
-      fields: r.fill?.fields ?? [
-        "prefLabel",
-        "altLabels",
-        "related",
-        "subjects",
-      ],
+      fields: r.fill?.fields ?? [...ALL_FILL_FIELDS],
+      minConfidence: r.fill?.minConfidence ?? 0.7,
       writeProvenance: r.fill?.writeProvenance ?? true,
       validateGraph: r.fill?.validateGraph ?? true,
       pricing: r.fill?.pricing,

@@ -45,13 +45,13 @@ provenance:
   qualified: true
 
 # Schemas \`dockg validate\` checks via docmeta. Default: the frontmatter
-# schema bundled with dockg (schemas/frontmatter-0.7.json). Override with
+# schema bundled with dockg (schemas/frontmatter-0.8.json). Override with
 # file paths, URLs, or docmeta built-in ids:
 # validate:
 #   schemas: ["./my-schema.json"]
 
 # SHACL shapes \`dockg check\` validates the built graph against. Default:
-# the shapes contract bundled with dockg (shapes/dockg-0.4.ttl).
+# the shapes contract bundled with dockg (shapes/dockg-0.5.ttl).
 # check:
 #   shapes: ["./my-shapes.ttl"]
 
@@ -70,9 +70,11 @@ fill:
   temperature: 0
   maxCostUsd: 5
   cacheDir: .dockg/cache
-  # broader/narrower are opt-in: hierarchy proposals hallucinate most.
-  fields: [prefLabel, altLabels, related, subjects]
-  # Record kg.provenance (model + machine-filled fields) on filled docs.
+  # fill proposes every field; confidence (0..1 per field) gates what is
+  # written. Fields scored below minConfidence are reported, not written.
+  minConfidence: 0.7
+  # fields: defaults to every fillable field — uncomment to restrict.
+  # Record kg.provenance (model + fields + confidence) on filled docs.
   writeProvenance: true
   # Reject proposals that would violate the SHACL shapes contract
   # (broader/narrower cycles, conflicting labels).

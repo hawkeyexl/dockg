@@ -126,6 +126,7 @@
         "temperature": { "type": "number", "minimum": 0, "maximum": 2 },
         "maxCostUsd": { "type": ["number", "null"], "minimum": 0 },
         "cacheDir": { "type": "string", "minLength": 1 },
+        "minConfidence": { "type": "number", "minimum": 0, "maximum": 1 },
         "writeProvenance": { "type": "boolean" },
         "validateGraph": { "type": "boolean" },
         "fields": {
@@ -138,7 +139,13 @@
               "broader",
               "narrower",
               "related",
-              "subjects"
+              "subjects",
+              "topicType",
+              "appliesTo",
+              "softwareLifecyclePhase",
+              "softwareSubject",
+              "notApplicableTo",
+              "notSoftwareSubject"
             ]
           }
         },

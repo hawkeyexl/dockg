@@ -16,6 +16,7 @@ import {
   existingKgFields,
   existingProvenance,
   frontmatterKind,
+  type ProvenanceEntry,
 } from "../core/frontmatter-edit.js";
 import { FillGuard } from "../core/fill-guard.js";
 import { bundledShapesPath } from "../core/pkg.js";
@@ -41,6 +42,8 @@ export interface FillOptions {
   force?: boolean;
   noCache?: boolean;
   maxCost?: number;
+  /** Minimum model confidence to write a field (overrides fill.minConfidence). */
+  minConfidence?: number;
   provider?: string;
   model?: string;
   /** Disable the graph guardrail (`--no-validate-graph`). */
@@ -66,6 +69,12 @@ export interface FillDocResult {
   preserved: string[];
   /** Fields dropped by the graph guardrail (fill.validateGraph). */
   rejected?: string[];
+  /** Fields the model proposed but scored below fill.minConfidence (ADR 01015). */
+  lowConfidence?: Array<{
+    field: string;
+    confidence: number;
+    reasoning?: string;
+  }>;
   cached: boolean;
   error?: string;
 }
@@ -85,6 +94,52 @@ const RELATION_FIELDS = [
   "narrower",
   "related",
 ] as const;
+
+/** A record's `{field → number}` sub-map, ignoring non-number entries. */
+function numberMap(v: unknown): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (v && typeof v === "object" && !Array.isArray(v)) {
+    for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
+      if (typeof val === "number") out[k] = val;
+    }
+  }
+  return out;
+}
+
+/** A record's `{field → string}` sub-map, ignoring non-string entries. */
+function stringMap(v: unknown): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (v && typeof v === "object" && !Array.isArray(v)) {
+    for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
+      if (typeof val === "string") out[k] = val;
+    }
+  }
+  return out;
+}
+
+/** Confidence stored to 2 decimals so the graph decimal literal is stable. */
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+/** Remove `fields` (and their confidence) from a provenance entry. */
+function dropFieldsFromEntry(
+  e: ProvenanceEntry,
+  fields: string[],
+): ProvenanceEntry {
+  const drop = new Set(fields);
+  const keptFields = e.fields.filter((f) => !drop.has(f));
+  const confidence = e.confidence
+    ? Object.fromEntries(
+        Object.entries(e.confidence).filter(([f]) => !drop.has(f)),
+      )
+    : undefined;
+  return {
+    generatedBy: e.generatedBy,
+    fields: keptFields,
+    ...(confidence ? { confidence } : {}),
+  };
+}
 
 export async function runFill(opts: FillOptions = {}): Promise<FillReport> {
   const cwd = opts.cwd ?? process.cwd();
@@ -126,6 +181,7 @@ export async function runFill(opts: FillOptions = {}): Promise<FillReport> {
   );
   const pricing = pricingFor(identity.model, config.fill.pricing);
   const maxCostUsd = opts.maxCost ?? config.fill.maxCostUsd;
+  const minConfidence = opts.minConfidence ?? config.fill.minConfidence;
 
   const allPaths = new Set(files);
   const results: FillDocResult[] = [];
@@ -249,6 +305,11 @@ export async function runFill(opts: FillOptions = {}): Promise<FillReport> {
       cache.set(key, proposal);
     }
 
+    // Per-field confidence + reasoning ride alongside the values (ADR 01015);
+    // pull them out before narrowing filters to field keys.
+    const confidence = numberMap(proposal["confidence"]);
+    const reasoning = stringMap(proposal["reasoning"]);
+
     // Only requested fields survive, even if the cache or provider offered
     // more; string arrays are deduplicated (the 0.1 schema enforces
     // uniqueItems on what we write).
@@ -272,6 +333,26 @@ export async function runFill(opts: FillOptions = {}): Promise<FillReport> {
       }
     };
     gatePrefLabel();
+
+    // Confidence gate (ADR 01015): drop any field the model scored below
+    // minConfidence (or did not score at all — no score means no write). This
+    // runs before the structural guardrail; the two are orthogonal, and the
+    // confidence gate covers every field, not just the guarded subset. A drop
+    // here is normal operation, reported but never an error (exit stays 0).
+    const lowConfidence: FillDocResult["lowConfidence"] = [];
+    for (const field of Object.keys(narrowed)) {
+      const c = confidence[field] ?? 0;
+      if (c < minConfidence) {
+        lowConfidence.push({
+          field,
+          confidence: c,
+          ...(reasoning[field] ? { reasoning: reasoning[field] } : {}),
+        });
+        delete narrowed[field];
+      }
+    }
+    if (lowConfidence.length > 0) gatePrefLabel();
+    const lowConf = lowConfidence.length > 0 ? { lowConfidence } : {};
 
     // Graph guardrail: drop any field whose triples would violate the
     // shapes contract (cycles, related⨯broader conflicts, second spellings
@@ -303,6 +384,7 @@ export async function runFill(opts: FillOptions = {}): Promise<FillReport> {
         fields: [],
         preserved: [],
         ...(rejected ? { rejected } : {}),
+        ...lowConf,
         cached,
       };
     }
@@ -317,14 +399,25 @@ export async function runFill(opts: FillOptions = {}): Promise<FillReport> {
       const mine = prior.find((e) => e.generatedBy === identity.model);
       const others = prior
         .filter((e) => e.generatedBy !== identity.model)
-        .map((e) => ({
-          generatedBy: e.generatedBy,
-          fields: e.fields.filter((f) => !realFields.includes(f)),
-        }))
+        .map((e) => dropFieldsFromEntry(e, realFields))
         .filter((e) => e.fields.length > 0);
+      // Confidence rides in the entry too (ADR 01015): this run's scores for the
+      // fields it wrote, merged over the model's prior scores.
+      const myConfidence: Record<string, number> = {
+        ...(mine?.confidence ?? {}),
+      };
+      for (const f of realFields) myConfidence[f] = round2(confidence[f] ?? 0);
+      const fieldSet = [
+        ...new Set([...(mine?.fields ?? []), ...realFields]),
+      ].sort();
       const entry = {
         generatedBy: identity.model,
-        fields: [...new Set([...(mine?.fields ?? []), ...realFields])].sort(),
+        fields: fieldSet,
+        confidence: Object.fromEntries(
+          fieldSet
+            .filter((f) => f in myConfidence)
+            .map((f) => [f, myConfidence[f]]),
+        ),
       };
       values["provenance"] = [...others, entry].sort((a, b) =>
         a.generatedBy < b.generatedBy ? -1 : 1,
@@ -344,6 +437,7 @@ export async function runFill(opts: FillOptions = {}): Promise<FillReport> {
         fields: [],
         preserved: applied.skipped,
         ...(rejected ? { rejected } : {}),
+        ...lowConf,
         cached,
       };
     }
@@ -358,6 +452,7 @@ export async function runFill(opts: FillOptions = {}): Promise<FillReport> {
       fields: reportedFields,
       preserved: applied.skipped,
       ...(rejected ? { rejected } : {}),
+      ...lowConf,
       cached,
     };
   }
@@ -374,15 +469,21 @@ export function renderFill(
       r.rejected && r.rejected.length > 0
         ? ` [graph check rejected: ${r.rejected.join(", ")}]`
         : "";
+    const lowConf =
+      r.lowConfidence && r.lowConfidence.length > 0
+        ? ` [low confidence, not written: ${r.lowConfidence
+            .map((l) => `${l.field} ${l.confidence.toFixed(2)}`)
+            .join(", ")}]`
+        : "";
     switch (r.status) {
       case "filled":
         lines.push(
-          `filled    ${r.path} (${r.fields.join(", ")})${r.cached ? " [cached]" : ""}${dropped}`,
+          `filled    ${r.path} (${r.fields.join(", ")})${r.cached ? " [cached]" : ""}${dropped}${lowConf}`,
         );
         break;
       case "proposed":
         lines.push(
-          `proposed  ${r.path} (${r.fields.join(", ")})${r.cached ? " [cached]" : ""}${dropped} — dry run, not written`,
+          `proposed  ${r.path} (${r.fields.join(", ")})${r.cached ? " [cached]" : ""}${dropped}${lowConf} — dry run, not written`,
         );
         break;
       case "complete":
@@ -390,7 +491,7 @@ export function renderFill(
         break;
       case "nothing-proposed":
         lines.push(
-          `no-op     ${r.path} (model proposed nothing new)${dropped}`,
+          `no-op     ${r.path} (model proposed nothing new)${dropped}${lowConf}`,
         );
         break;
       case "skipped-budget":

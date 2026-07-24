@@ -1,6 +1,6 @@
 /**
  * Namespace table. Standard vocabularies wherever a term exists; the custom
- * `dockg:` namespace stays minimal (2 classes, 8 properties). The prefix set
+ * `dockg:` namespace stays minimal (2 classes, 10 properties). The prefix set
  * is fixed — every emitted graph carries the same header.
  */
 export const NS = {

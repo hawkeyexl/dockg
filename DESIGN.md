@@ -247,24 +247,33 @@ regenerated golden, and README/init docs. The `dockg:` namespace grew by two
 properties (6 → 8). Lifecycle-phase and topic-type negation were left out of
 scope.
 
-## Phase 5 — Fill as resolution-deepening
+## Phase 5 — Fill as resolution-deepening — **done**
 
 **Goal:** `fill` becomes the deliberate lift-facts-into-the-graph phase, with
 exception-based human review.
 
-Decisions to make (ADRs):
-- Forced reasoning in fill prompts (justify each proposal against doc +
-  corpus) — cost/benefit per provider.
-- Confidence scoring: per-field scores; `fill.minConfidence` gate (proposals
-  below it are reported as findings, not written). Where confidence lives:
-  run report only vs. `kg.provenance` (leading candidate: run report only —
-  provenance already names machine-filled fields and humans delete entries
-  after review).
-- Whether fill learns the new Phase 2/3 fields (`topicType`, `appliesTo`,
-  section metadata) and in what order of trust.
+Decided ([ADR 01015](adrs/01015-fill-confidence.md)):
+- **Fill proposes every fillable field** (SKOS + all Phase 2–4 iiRDS fields).
+  The old `broader`/`narrower`-off allowlist is retired — **confidence** gates
+  what is written, not a static list. Maintainer steer: nothing blocked by a
+  hard rule; hallucination-prone fields self-filter via low confidence.
+- **Forced reasoning + per-field confidence.** The model returns `confidence`
+  (0..1) and `reasoning` sibling maps. `fill.minConfidence` (default **0.7**,
+  `--min-confidence`) drops below-threshold fields — reported, not written.
+- **Dropped-for-confidence is exit 0** — normal operation; an orchestrating
+  agent must not read routine drops as failure. Exit 1 stays for real errors.
+- **Confidence persisted** in `kg.provenance` (schema 0.8) and the emitted
+  graph: the fill activity reifies each field into an entry node
+  (`dockg:filledFieldEntry` → `dockg:filledField` + `dockg:confidence`).
+- **Section-level fill deferred** (fill is doc-level).
 
-Constraints: MockProvider-only tests; the SHACL fill-guard stays the
-structural gate ("certified by structure"); build determinism untouched.
+Delivered: all-fields config + `fill.minConfidence` + `--min-confidence`; the
+confidence/reasoning prompt contract (`PROMPT_VERSION` bump); the `fillOne`
+confidence gate + report surface; the fill-guard extended to the iiRDS
+`sh:disjoint` conflict; schema `frontmatter-0.8.json`; the reified emitter +
+`shapes/dockg-0.5.ttl`; drift guards; README/init docs. `dockg:` namespace grew
+by two (`filledFieldEntry`, `confidence`, 8 → 10). Golden unchanged (no corpus
+doc carries `kg.provenance`). MockProvider-only tests; build determinism intact.
 
 ## Phase 6 — Export surfaces
 

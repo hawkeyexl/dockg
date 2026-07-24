@@ -22,7 +22,28 @@ const PROPOSAL = {
   altLabels: ["query language"],
   related: ["Search Operators"],
   subjects: ["search"],
+  // Above the 0.7 default gate so these fields are written (ADR 01015).
+  confidence: {
+    prefLabel: 0.95,
+    altLabels: 0.9,
+    related: 0.85,
+    subjects: 0.9,
+  },
 };
+
+/** Restrict fill to the four SKOS fields the pre-confidence tests assumed. */
+const SKOS_FIELDS =
+  "fill:\n  fields: [prefLabel, altLabels, related, subjects]\n";
+
+/** A mock response for `json`, with high confidence auto-added for every
+ *  value field so it clears the confidence gate (ADR 01015). */
+function conf(json: Record<string, unknown>): {
+  json: Record<string, unknown>;
+} {
+  const confidence: Record<string, number> = {};
+  for (const k of Object.keys(json)) confidence[k] = 0.95;
+  return { json: { ...json, confidence } };
+}
 
 describe("runFill", () => {
   it("writes proposed fields into frontmatter", async () => {
@@ -51,10 +72,13 @@ describe("runFill", () => {
   });
 
   it("skips docs whose requested fields are all present", async () => {
-    const dir = setup({
-      "a.md":
-        "---\nkg:\n  prefLabel: X\n  altLabels: [y]\n  related: [z]\n  subjects: [s]\n---\n",
-    });
+    const dir = setup(
+      {
+        "a.md":
+          "---\nkg:\n  prefLabel: X\n  altLabels: [y]\n  related: [z]\n  subjects: [s]\n---\n",
+      },
+      SKOS_FIELDS,
+    );
     const provider = new MockProvider([{ json: PROPOSAL }]);
     const report = await runFill({ cwd: dir, providerInstance: provider });
     expect(report.results[0]).toMatchObject({ status: "complete" });
@@ -134,7 +158,7 @@ describe("runFill", () => {
     );
     await runFill({
       cwd: dir,
-      providerInstance: new MockProvider([{ json: { prefLabel: "X" } }], "m1"),
+      providerInstance: new MockProvider([conf({ prefLabel: "X" })], "m1"),
     });
     // second run with a broader field set fills subjects too — different model
     const { writeFileSync: write } = await import("node:fs");
@@ -144,7 +168,7 @@ describe("runFill", () => {
     );
     await runFill({
       cwd: dir,
-      providerInstance: new MockProvider([{ json: { subjects: ["s"] } }], "m2"),
+      providerInstance: new MockProvider([conf({ subjects: ["s"] })], "m2"),
     });
     const written = readFileSync(join(dir, "a.md"), "utf8");
     // one entry per model, each attributing only its own fields
@@ -159,12 +183,12 @@ describe("runFill", () => {
     );
     await runFill({
       cwd: dir,
-      providerInstance: new MockProvider([{ json: { prefLabel: "X" } }], "m1"),
+      providerInstance: new MockProvider([conf({ prefLabel: "X" })], "m1"),
     });
     await runFill({
       cwd: dir,
       force: true,
-      providerInstance: new MockProvider([{ json: { prefLabel: "Y" } }], "m2"),
+      providerInstance: new MockProvider([conf({ prefLabel: "Y" })], "m2"),
     });
     const written = readFileSync(join(dir, "a.md"), "utf8");
     expect(written).toContain("prefLabel: Y");
@@ -183,10 +207,13 @@ describe("runFill", () => {
   });
 
   it("does not treat an existing provenance entry as a fillable field", async () => {
-    const dir = setup({
-      "a.md":
-        "---\nkg:\n  prefLabel: X\n  altLabels: [y]\n  related: [z]\n  subjects: [s]\n  provenance:\n    generatedBy: old\n    fields: [prefLabel]\n---\n",
-    });
+    const dir = setup(
+      {
+        "a.md":
+          "---\nkg:\n  prefLabel: X\n  altLabels: [y]\n  related: [z]\n  subjects: [s]\n  provenance:\n    generatedBy: old\n    fields: [prefLabel]\n---\n",
+      },
+      SKOS_FIELDS,
+    );
     const provider = new MockProvider([{ json: PROPOSAL }]);
     const report = await runFill({ cwd: dir, providerInstance: provider });
     expect(report.results[0]).toMatchObject({ status: "complete" });
@@ -261,7 +288,7 @@ describe("runFill", () => {
   it("never writes relation fields without a prefLabel", async () => {
     const dir = setup({ "a.md": "---\ntitle: T\n---\n" });
     const provider = new MockProvider([
-      { json: { altLabels: ["x"], related: ["y"], subjects: ["s"] } },
+      conf({ altLabels: ["x"], related: ["y"], subjects: ["s"] }),
     ]);
     const report = await runFill({ cwd: dir, providerInstance: provider });
     // altLabels/related require prefLabel (0.1 dependentRequired) — dropped
@@ -287,7 +314,7 @@ describe("runFill", () => {
       { "a.md": "---\nkg:\n  prefLabel: Kept\n---\n" },
       "fill:\n  fields: [prefLabel, subjects]\n",
     );
-    const provider = new MockProvider([{ json: { subjects: ["search"] } }]);
+    const provider = new MockProvider([conf({ subjects: ["search"] })]);
     const report = await runFill({ cwd: dir, providerInstance: provider });
     expect(report.results[0]).toMatchObject({
       status: "filled",
@@ -301,8 +328,110 @@ describe("runFill", () => {
   });
 });
 
+describe("runFill confidence gate (ADR 01015)", () => {
+  it("writes high-confidence fields and reports low-confidence ones without writing", async () => {
+    const dir = setup({ "a.md": "---\ntitle: T\n---\n\n# T\n" }, SKOS_FIELDS);
+    const provider = new MockProvider([
+      {
+        json: {
+          prefLabel: "Config",
+          subjects: ["search"],
+          confidence: { prefLabel: 0.95, subjects: 0.3 },
+          reasoning: { subjects: "only tangentially about search" },
+        },
+      },
+    ]);
+    const report = await runFill({ cwd: dir, providerInstance: provider });
+    // Normal operation: low-confidence drops do not fail the run.
+    expect(report.exitCode).toBe(0);
+    const r = report.results[0]!;
+    expect(r.status).toBe("filled");
+    expect(r.fields).toEqual(["prefLabel"]);
+    expect(r.lowConfidence).toEqual([
+      {
+        field: "subjects",
+        confidence: 0.3,
+        reasoning: "only tangentially about search",
+      },
+    ]);
+    const written = readFileSync(join(dir, "a.md"), "utf8");
+    expect(written).toContain("prefLabel: Config");
+    expect(written).not.toContain("subjects");
+  });
+
+  it("records per-field confidence in kg.provenance", async () => {
+    const dir = setup({ "a.md": "---\ntitle: T\n---\n" }, SKOS_FIELDS);
+    const provider = new MockProvider(
+      [{ json: { prefLabel: "Config", confidence: { prefLabel: 0.91 } } }],
+      "m1",
+    );
+    await runFill({ cwd: dir, providerInstance: provider });
+    const written = readFileSync(join(dir, "a.md"), "utf8");
+    expect(written).toMatch(/generatedBy: m1/);
+    expect(written).toMatch(/confidence:[\s\S]*?prefLabel: 0\.91/);
+  });
+
+  it("a field with no confidence score is never written", async () => {
+    const dir = setup({ "a.md": "---\ntitle: T\n---\n" }, SKOS_FIELDS);
+    // prefLabel proposed but unscored — the model must score to write.
+    const provider = new MockProvider([{ json: { prefLabel: "Config" } }]);
+    const report = await runFill({ cwd: dir, providerInstance: provider });
+    expect(report.results[0]?.status).toBe("nothing-proposed");
+    expect(report.results[0]?.lowConfidence?.[0]?.field).toBe("prefLabel");
+  });
+
+  it("--min-confidence overrides the config threshold", async () => {
+    const dir = setup({ "a.md": "---\ntitle: T\n---\n" }, SKOS_FIELDS);
+    const provider = new MockProvider([
+      { json: { prefLabel: "Config", confidence: { prefLabel: 0.8 } } },
+    ]);
+    // Raise the bar above 0.8: the field is now dropped.
+    const report = await runFill({
+      cwd: dir,
+      providerInstance: provider,
+      minConfidence: 0.9,
+    });
+    expect(report.results[0]?.status).toBe("nothing-proposed");
+    expect(readFileSync(join(dir, "a.md"), "utf8")).not.toContain("prefLabel");
+  });
+
+  it("fills an iiRDS field (topicType) at high confidence", async () => {
+    const dir = setup(
+      { "a.md": "---\ntitle: Install Guide\n---\n\n# Install\n" },
+      "fill:\n  fields: [topicType]\n",
+    );
+    const provider = new MockProvider([
+      { json: { topicType: "task", confidence: { topicType: 0.9 } } },
+    ]);
+    const report = await runFill({ cwd: dir, providerInstance: provider });
+    expect(report.results[0]?.status).toBe("filled");
+    expect(readFileSync(join(dir, "a.md"), "utf8")).toContain(
+      "topicType: task",
+    );
+  });
+
+  it("the guardrail rejects a variant proposed as both applicable and not-applicable", async () => {
+    const dir = setup(
+      { "a.md": "---\ntitle: T\nkg:\n  appliesTo: [SP-X1]\n---\n\n# T\n" },
+      "fill:\n  fields: [notApplicableTo]\n  minConfidence: 0\n",
+    );
+    // The model (over)proposes excluding the same variant the doc applies to.
+    const provider = new MockProvider([
+      { json: { notApplicableTo: ["SP-X1"] } },
+    ]);
+    const report = await runFill({ cwd: dir, providerInstance: provider });
+    expect(report.results[0]?.rejected).toContain("notApplicableTo");
+    expect(readFileSync(join(dir, "a.md"), "utf8")).not.toContain(
+      "notApplicableTo",
+    );
+  });
+});
+
 describe("runFill graph guardrail (fill.validateGraph)", () => {
-  const HIERARCHY_CONFIG = "fill:\n  fields: [prefLabel, broader, related]\n";
+  // Confidence gate disabled here (minConfidence 0) so these tests exercise the
+  // structural SHACL guardrail in isolation; the bare proposals carry no scores.
+  const HIERARCHY_CONFIG =
+    "fill:\n  fields: [prefLabel, broader, related]\n  minConfidence: 0\n";
 
   it("rejects a broader proposal that would create a cycle", async () => {
     const dir = setup(
@@ -413,7 +542,7 @@ describe("runFill graph guardrail (fill.validateGraph)", () => {
           "---\ntitle: A\nkg:\n  prefLabel: Alpha\n  broader: [Beta]\n---\n\n# A\n",
         "b.md": "---\ntitle: B\n---\n\n# B\n",
       },
-      "fill:\n  fields: [prefLabel, broader, related]\n  validateGraph: false\n",
+      "fill:\n  fields: [prefLabel, broader, related]\n  validateGraph: false\n  minConfidence: 0\n",
     );
     const provider = new MockProvider([
       { json: { prefLabel: "Beta", broader: ["Alpha"] } },

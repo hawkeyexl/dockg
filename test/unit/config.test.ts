@@ -34,12 +34,22 @@ describe("parseConfig", () => {
     expect(c.fill.temperature).toBe(0);
     expect(c.fill.maxCostUsd).toBe(5);
     expect(c.fill.cacheDir).toBe(".dockg/cache");
+    // Fill proposes every field now; confidence gates what is written (ADR 01015).
     expect(c.fill.fields).toEqual([
       "prefLabel",
       "altLabels",
+      "broader",
+      "narrower",
       "related",
       "subjects",
+      "topicType",
+      "appliesTo",
+      "softwareLifecyclePhase",
+      "softwareSubject",
+      "notApplicableTo",
+      "notSoftwareSubject",
     ]);
+    expect(c.fill.minConfidence).toBe(0.7);
   });
 
   it("normalizes baseIri with a trailing slash", () => {
