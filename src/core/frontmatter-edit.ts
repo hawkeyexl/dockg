@@ -168,6 +168,8 @@ export function applyKgFields(
 export interface ProvenanceEntry {
   generatedBy: string;
   fields: string[];
+  /** Per-field model confidence 0..1 for the fields it wrote (schema 0.8). */
+  confidence?: Record<string, number>;
 }
 
 /**
@@ -188,11 +190,19 @@ export function existingProvenance(content: string): ProvenanceEntry[] {
     if (!item || typeof item !== "object" || Array.isArray(item)) continue;
     const record = item as Record<string, unknown>;
     if (typeof record["generatedBy"] !== "string") continue;
+    const conf = record["confidence"];
+    const confidence: Record<string, number> = {};
+    if (conf && typeof conf === "object" && !Array.isArray(conf)) {
+      for (const [k, v] of Object.entries(conf as Record<string, unknown>)) {
+        if (typeof v === "number") confidence[k] = v;
+      }
+    }
     entries.push({
       generatedBy: record["generatedBy"],
       fields: Array.isArray(record["fields"])
         ? record["fields"].filter((f): f is string => typeof f === "string")
         : [],
+      ...(Object.keys(confidence).length > 0 ? { confidence } : {}),
     });
   }
   return entries;

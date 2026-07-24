@@ -273,6 +273,22 @@ describe("validateGraph", () => {
     expect(hit!.severity).toBe("violation");
   });
 
+  it("accepts a reified fill-field entry with confidence (ADR 01015)", async () => {
+    const activity = `${BASE}doc/docs/a.md#prov.kg-fill.m1`;
+    const entry = `${activity}.field.prefLabel`;
+    const store = build([
+      ...conformingTriples(),
+      [activity, RDF_TYPE, `${NS.prov}Activity`],
+      [activity, `${NS.prov}wasAssociatedWith`, `${BASE}agent/software/m1`],
+      [activity, `${NS.dockg}filledFieldEntry`, entry],
+      [entry, `${NS.dockg}filledField`, { lit: "prefLabel" }],
+      [entry, `${NS.dockg}confidence`, { lit: "0.9", dt: `${NS.xsd}decimal` }],
+      [`${BASE}agent/software/m1`, RDF_TYPE, `${NS.prov}SoftwareAgent`],
+      [`${BASE}agent/software/m1`, `${NS.foaf}name`, { lit: "m1" }],
+    ]);
+    expect(await validateGraph(store, SHAPES)).toEqual([]);
+  });
+
   it("detects a two-node skos:broader cycle", async () => {
     const store = build([
       ...conformingTriples(),

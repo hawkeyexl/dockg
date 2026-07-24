@@ -531,9 +531,23 @@ export function deriveGraph(docs: DocModel[], options: DeriveOptions): Quad[] {
         add(activity, RDF_TYPE, iri(`${NS.prov}Activity`));
         add(activity, `${NS.prov}wasAssociatedWith`, iri(modelAgent));
         qualifyAssociation(activity, modelAgent, ROLE.generator);
+        // Each filled field is reified as an entry node carrying its name and
+        // (when fill recorded one) the model's confidence — a plain,
+        // blank-node-free per-field audit edge (ADR 01015).
         const filledFields = asStringArray(entry["fields"]);
+        const confidence = asRecord(entry["confidence"]);
         for (const field of filledFields) {
-          add(activity, `${NS.dockg}filledField`, lit(field));
+          const fieldNode = `${activity}.field.${field}`;
+          add(activity, `${NS.dockg}filledFieldEntry`, iri(fieldNode));
+          add(fieldNode, `${NS.dockg}filledField`, lit(field));
+          const c = confidence[field];
+          if (typeof c === "number") {
+            add(
+              fieldNode,
+              `${NS.dockg}confidence`,
+              typedLit(String(Math.round(c * 100) / 100), `${NS.xsd}decimal`),
+            );
+          }
         }
         const prefLabel = kg ? asString(kg["prefLabel"]) : undefined;
         if (prefLabel && filledFields.includes("prefLabel")) {

@@ -55,4 +55,26 @@ describe("dockg fill --provider mock (CLI smoke)", () => {
     expect(stdout).toContain("LLM cost: $0.00");
     expect(readFileSync(join(dir, "a.md"), "utf8")).toBe(doc);
   });
+
+  it("accepts --min-confidence and still exits 0", () => {
+    const dir = mkdtempSync(join(tmpdir(), "dockg-fillconf-"));
+    writeFileSync(
+      join(dir, "dockg.config.yaml"),
+      'version: 1\ninputs: ["*.md"]\n',
+    );
+    writeFileSync(join(dir, "a.md"), "---\ntitle: T\n---\n\n# T\n");
+    const { status } = run(
+      [
+        "fill",
+        "--dry-run",
+        "--provider",
+        "mock",
+        "--no-cache",
+        "--min-confidence",
+        "0.9",
+      ],
+      dir,
+    );
+    expect(status).toBe(0);
+  });
 });

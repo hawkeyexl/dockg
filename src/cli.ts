@@ -115,7 +115,7 @@ program
 program
   .command("fill")
   .description(
-    "Propose SKOS `kg:` frontmatter fields with an LLM and write them back",
+    "Propose `kg:` frontmatter fields with an LLM, gated by confidence, and write them back",
   )
   .argument("[globs...]", "Input globs (default: config inputs)")
   .option("-c, --config <path>", "Path to dockg.config.yaml")
@@ -126,6 +126,11 @@ program
   .option("--no-validate-graph", "Skip the SHACL graph guardrail on proposals")
   .option("--max-cost <usd>", "Stop proposing past this cost", (v) =>
     Number.parseFloat(v),
+  )
+  .option(
+    "--min-confidence <n>",
+    "Minimum model confidence (0..1) to write a field (default: config, 0.7)",
+    (v) => Number.parseFloat(v),
   )
   .option(
     "--provider <name>",
@@ -142,6 +147,7 @@ program
         noCache: opts.cache === false,
         noValidateGraph: opts.validateGraph === false,
         maxCost: opts.maxCost as number | undefined,
+        minConfidence: opts.minConfidence as number | undefined,
         provider: opts.provider as string | undefined,
         model: opts.model as string | undefined,
       });
