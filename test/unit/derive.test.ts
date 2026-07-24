@@ -738,6 +738,31 @@ describe("deriveGraph — section-level metadata (ADR 01013)", () => {
     expect(g.some((q) => q.p === `${NS.dockg}brokenSectionRef`)).toBe(false);
     expect(g.some((q) => q.s === SEC)).toBe(false);
   });
+
+  it("gates section typing on the sections source, independent of frontmatter", () => {
+    // ADR 01013's deliberate asymmetry: with `frontmatter` off but `sections`
+    // on, the section still gets its iiRDS typing even though the document's
+    // own kg typing (under `frontmatter`) does not.
+    const g = graph(
+      {
+        "docs/a.md":
+          "---\nkg:\n  topicType: concept\n  sections:\n    install:\n      topicType: task\n---\n\n# A\n\n## Install\n",
+      },
+      ["sections"],
+    );
+    expect(
+      has(g, SEC, `${NS.iirds}has-topic-type`, iri(`${NS.iirds}GenericTask`)),
+    ).toBe(true);
+    // Document-level typing is gated by `frontmatter`, which is off here.
+    expect(
+      has(
+        g,
+        DOC,
+        `${NS.iirds}has-topic-type`,
+        iri(`${NS.iirds}GenericConcept`),
+      ),
+    ).toBe(false);
+  });
 });
 
 describe("deriveGraph — images, code, derive toggles", () => {
