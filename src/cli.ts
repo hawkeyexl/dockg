@@ -5,6 +5,7 @@ import { DockgError } from "./types.js";
 import { toolVersion } from "./core/pkg.js";
 import { runBuild } from "./commands/build.js";
 import { renderCheck, runCheck } from "./commands/check.js";
+import { runExport, type ExportFormat } from "./commands/export.js";
 import { renderQuery, runQuery } from "./commands/query.js";
 import { renderValidate, runValidate } from "./commands/validate.js";
 import { renderFill, runFill } from "./commands/fill.js";
@@ -220,6 +221,41 @@ program
         const report = runStats(opts);
         console.log(renderStats(report, opts.format as "pretty" | "json"));
         process.exitCode = report.exitCode;
+      } catch (e) {
+        fail(e);
+      }
+    },
+  );
+
+program
+  .command("export")
+  .description(
+    "Reserialize the built graph into a consumer format (jsonld; iirds is Phase 6b)",
+  )
+  .option("-c, --config <path>", "Path to dockg.config.yaml")
+  .option("-g, --graph <path>", "Graph .ttl path (default: config out)")
+  .option("-f, --format <format>", "Export format: jsonld", "jsonld")
+  .option(
+    "-o, --out <path>",
+    "Output path (default: the graph path with the format's extension)",
+  )
+  .action(
+    async (opts: {
+      config?: string;
+      graph?: string;
+      format: string;
+      out?: string;
+    }) => {
+      try {
+        const result = await runExport({
+          config: opts.config,
+          graph: opts.graph,
+          format: opts.format as ExportFormat,
+          out: opts.out,
+        });
+        console.log(
+          `Wrote ${result.nodes} node${result.nodes === 1 ? "" : "s"} to ${result.outPath}`,
+        );
       } catch (e) {
         fail(e);
       }

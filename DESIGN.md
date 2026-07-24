@@ -275,26 +275,43 @@ confidence gate + report surface; the fill-guard extended to the iiRDS
 by two (`filledFieldEntry`, `confidence`, 8 → 10). Golden unchanged (no corpus
 doc carries `kg.provenance`). MockProvider-only tests; build determinism intact.
 
-## Phase 6 — Export surfaces
+## Phase 6 — JSON-LD export — **done**
 
-**Goal:** the graph reaches its consumers in their native formats; `build`
-emits everything by default (per mandate).
+**Goal:** the graph reaches web-native consumers as JSON-LD, losslessly and
+deterministically.
+
+Delivered ([ADR 01016](adrs/01016-jsonld-export.md)):
+- **`dockg export --format jsonld`** — a standalone command that reads the built
+  graph (like `stats`/`check`) and reserializes it as JSON-LD. Not a default
+  `build` output; the standalone command is the chosen delivery.
+- **Whole-graph, lossless** rendering: `{ "@context": <PREFIXES>, "@graph":
+  [nodes] }`, grouped by subject, `rdf:type` → `@type`, compacted CURIE keys,
+  IRI objects `{@id}`, typed literals `{@value,@type}`. No lossy schema.org
+  projection; consumers read the `schema:` terms already present. No `HowTo`
+  step synthesis (out of scope).
+- **Determinism**: a hand-rolled serializer (`src/core/emit-jsonld.ts`) mirroring
+  the Turtle emitter — everything sorted via `byCodeUnit`, byte-stable across
+  exports, gated by a version-normalized golden (`graph.jsonld`).
+- **iiRDS ingest**: deferred (export-only this phase).
+- **`--format iirds`**: recognized but fails with a Phase-6b pointer, keeping the
+  flag surface stable.
+
+## Phase 6b — iiRDS package export
+
+**Goal:** `dockg export --format iirds` produces a conformant iiRDS package.
 
 Decisions to make (ADRs):
-- **JSON-LD/schema.org export**: mapping (mostly identity — `schema:` and
-  `dcterms:` pass through; decide additional typing like
-  `schema:TechArticle`); deterministic serialization (stable key order via
-  `byCodeUnit`); what is explicitly out of scope (e.g. `HowTo` step
-  synthesis).
-- **iiRDS package export**: package layout (`metadata.rdf` + content refs),
-  what plays the content role for markdown sources, deterministic zip (fixed
-  entry order, zeroed timestamps), conformance target (iiRDS 1.3 package
-  rules), and whether the Phase 2 mapping suffices or the package needs
-  more.
-- Output paths and suppression knobs; whether exports are `build` outputs
-  (mandated default) *and* standalone commands.
-- **iiRDS ingest** (packages as a derive source): decide explicitly —
-  in, out, or deferred with trigger condition.
+- **Package layout**: `META-INF/metadata.rdf` (RDF/XML) + content refs; what
+  plays the `iirds:Rendition` content role for markdown sources.
+- **Mandatory package metadata**: `iirds:Package` + `iiRDSVersion`, a Creator
+  `iirds:Party` + vcard org, an `iirds:ProductVariant` — with an explicit story
+  for corpora lacking a creator/variant (warn + emit Unrestricted, or fail with
+  guidance).
+- **Deterministic ZIP**: fixed entry order, zeroed timestamps (no ZIP writer
+  exists in deps yet).
+- **RDF/XML serializer**: a second hand-rolled deterministic emitter (no library).
+- Conformance target: iiRDS 1.3 package rules, validated against the plusmeta
+  iiRDS Validation Tool's rule set.
 
 Research first: iiRDS package conformance requirements; how existing CDPs
 (content delivery portals) validate incoming packages.
@@ -369,7 +386,7 @@ of the phase that needs it, not before):
 | iiRDS/H and DIN SPEC 91526 relationship to Core; what to track vs. adopt | Phase 2 |
 | Official iiRDS SHACL/validation assets | Phase 2 |
 | Negative-scope precedent in iiRDS/schema.org (verify none before minting `dockg:` term) | Phase 4 |
-| iiRDS 1.3 package conformance rules; CDP intake validation practices | Phase 6 |
+| iiRDS 1.3 package conformance rules; CDP intake validation practices | Phase 6b |
 | QUDT adoption for quantitative properties (sizes, torques) lifted by fill | Phase 5/6 |
 | Embedded SPARQL options (oxigraph WASM, Comunica) vs. custom walker maintenance cost | Phase 7 |
 | MCP server conventions for doc/knowledge tools | Phase 9 |

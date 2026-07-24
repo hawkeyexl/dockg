@@ -50,6 +50,7 @@ export {
   type GitHistory,
 } from "./core/git.js";
 export { emitTurtle } from "./core/emit.js";
+export { emitJsonLd } from "./core/emit-jsonld.js";
 export { loadGraph, expandTerm, compactIri } from "./core/load.js";
 export {
   applyKgFields,
@@ -70,6 +71,12 @@ export {
   type ValidateOptions,
   type ValidateResult,
 } from "./commands/validate.js";
+export {
+  runExport,
+  type ExportOptions,
+  type ExportResult,
+  type ExportFormat,
+} from "./commands/export.js";
 export {
   runQuery,
   type QueryOptions,

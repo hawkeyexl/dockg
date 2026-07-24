@@ -1,0 +1,425 @@
+{
+  "@context": {
+    "dcterms": "http://purl.org/dc/terms/",
+    "dockg": "https://dockg.dev/ns#",
+    "foaf": "http://xmlns.com/foaf/0.1/",
+    "iirds": "http://iirds.tekom.de/iirds#",
+    "iirdsSft": "http://iirds.tekom.de/iirds/domain/software#",
+    "prov": "http://www.w3.org/ns/prov#",
+    "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+    "schema": "https://schema.org/",
+    "skos": "http://www.w3.org/2004/02/skos/core#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#"
+  },
+  "@graph": [
+    {
+      "@id": "https://example.com/kg/activity/build",
+      "@type": "prov:Activity",
+      "prov:qualifiedAssociation": {
+        "@id": "https://example.com/kg/activity/build.assoc.dockg"
+      },
+      "prov:used": [
+        {
+          "@id": "https://example.com/kg/doc/docs/configuration.md"
+        },
+        {
+          "@id": "https://example.com/kg/doc/docs/getting-started.md"
+        },
+        {
+          "@id": "https://example.com/kg/doc/docs/no-frontmatter.md"
+        },
+        {
+          "@id": "https://example.com/kg/doc/docs/windows-notes.md"
+        }
+      ],
+      "prov:wasAssociatedWith": {
+        "@id": "https://example.com/kg/agent/software/dockg"
+      }
+    },
+    {
+      "@id": "https://example.com/kg/activity/build.assoc.dockg",
+      "@type": "prov:Association",
+      "prov:agent": {
+        "@id": "https://example.com/kg/agent/software/dockg"
+      },
+      "prov:hadRole": {
+        "@id": "https://dockg.dev/ns#toolRole"
+      }
+    },
+    {
+      "@id": "https://example.com/kg/agent/person/jane-doe",
+      "@type": "prov:Person",
+      "foaf:name": "Jane Doe"
+    },
+    {
+      "@id": "https://example.com/kg/agent/software/dockg",
+      "@type": "prov:SoftwareAgent",
+      "foaf:name": "dockg",
+      "dockg:version": "0.1.0"
+    },
+    {
+      "@id": "https://example.com/kg/concept/administration",
+      "@type": "skos:Concept",
+      "skos:inScheme": {
+        "@id": "https://example.com/kg/scheme"
+      },
+      "skos:prefLabel": "Administration"
+    },
+    {
+      "@id": "https://example.com/kg/concept/configuration",
+      "@type": "skos:Concept",
+      "skos:altLabel": [
+        "config",
+        "settings"
+      ],
+      "skos:broader": {
+        "@id": "https://example.com/kg/concept/administration"
+      },
+      "skos:inScheme": {
+        "@id": "https://example.com/kg/scheme"
+      },
+      "skos:prefLabel": [
+        "Configuration",
+        "configuration"
+      ],
+      "skos:related": {
+        "@id": "https://example.com/kg/concept/installation"
+      }
+    },
+    {
+      "@id": "https://example.com/kg/concept/installation",
+      "@type": "skos:Concept",
+      "skos:inScheme": {
+        "@id": "https://example.com/kg/scheme"
+      },
+      "skos:prefLabel": [
+        "Installation",
+        "installation"
+      ]
+    },
+    {
+      "@id": "https://example.com/kg/concept/reference",
+      "@type": "skos:Concept",
+      "skos:inScheme": {
+        "@id": "https://example.com/kg/scheme"
+      },
+      "skos:prefLabel": "reference"
+    },
+    {
+      "@id": "https://example.com/kg/concept/setup",
+      "@type": "skos:Concept",
+      "skos:inScheme": {
+        "@id": "https://example.com/kg/scheme"
+      },
+      "skos:prefLabel": "setup"
+    },
+    {
+      "@id": "https://example.com/kg/doc/docs/configuration.md",
+      "@type": [
+        "dockg:Document",
+        "prov:Entity"
+      ],
+      "iirds:has-subject": {
+        "@id": "http://iirds.tekom.de/iirds/domain/software#Interface"
+      },
+      "iirds:has-topic-type": {
+        "@id": "http://iirds.tekom.de/iirds#GenericReference"
+      },
+      "iirds:relates-to-product-variant": [
+        {
+          "@id": "https://example.com/kg/product/sp-x100"
+        },
+        {
+          "@id": "https://example.com/kg/product/sp-x200"
+        }
+      ],
+      "dcterms:hasPart": {
+        "@id": "https://example.com/kg/doc/docs/configuration.md#configuration"
+      },
+      "dcterms:references": [
+        {
+          "@id": "https://example.com/kg/doc/docs/getting-started.md"
+        },
+        {
+          "@id": "https://example.com/kg/doc/docs/getting-started.md#install"
+        },
+        {
+          "@id": "https://json-schema.org/"
+        }
+      ],
+      "dcterms:subject": [
+        {
+          "@id": "https://example.com/kg/concept/configuration"
+        },
+        {
+          "@id": "https://example.com/kg/concept/reference"
+        }
+      ],
+      "dcterms:title": "Configuration Reference",
+      "foaf:primaryTopic": {
+        "@id": "https://example.com/kg/concept/configuration"
+      },
+      "dockg:notApplicableToVariant": {
+        "@id": "https://example.com/kg/product/sp-x300"
+      },
+      "dockg:path": "docs/configuration.md"
+    },
+    {
+      "@id": "https://example.com/kg/doc/docs/configuration.md#advanced",
+      "@type": "dockg:Section",
+      "dcterms:title": "Advanced",
+      "dockg:level": {
+        "@value": "3",
+        "@type": "xsd:integer"
+      },
+      "dockg:order": {
+        "@value": "1",
+        "@type": "xsd:integer"
+      }
+    },
+    {
+      "@id": "https://example.com/kg/doc/docs/configuration.md#configuration",
+      "@type": "dockg:Section",
+      "dcterms:hasPart": {
+        "@id": "https://example.com/kg/doc/docs/configuration.md#options"
+      },
+      "dcterms:title": "Configuration",
+      "dockg:level": {
+        "@value": "1",
+        "@type": "xsd:integer"
+      },
+      "dockg:order": {
+        "@value": "1",
+        "@type": "xsd:integer"
+      }
+    },
+    {
+      "@id": "https://example.com/kg/doc/docs/configuration.md#options",
+      "@type": "dockg:Section",
+      "dcterms:hasPart": {
+        "@id": "https://example.com/kg/doc/docs/configuration.md#advanced"
+      },
+      "dcterms:title": "Options",
+      "dockg:level": {
+        "@value": "2",
+        "@type": "xsd:integer"
+      },
+      "dockg:notSoftwareSubject": {
+        "@id": "http://iirds.tekom.de/iirds/domain/software#Architecture"
+      },
+      "dockg:order": {
+        "@value": "1",
+        "@type": "xsd:integer"
+      }
+    },
+    {
+      "@id": "https://example.com/kg/doc/docs/getting-started.md",
+      "@type": [
+        "dockg:Document",
+        "prov:Entity"
+      ],
+      "iirds:has-topic-type": {
+        "@id": "http://iirds.tekom.de/iirds#GenericTask"
+      },
+      "iirds:relates-to-product-lifecycle-phase": {
+        "@id": "http://iirds.tekom.de/iirds/domain/software#Deployment"
+      },
+      "dcterms:created": {
+        "@value": "2026-05-01",
+        "@type": "xsd:date"
+      },
+      "dcterms:creator": {
+        "@id": "https://example.com/kg/agent/person/jane-doe"
+      },
+      "dcterms:description": "Install and configure the tool.",
+      "dcterms:hasPart": {
+        "@id": "https://example.com/kg/doc/docs/getting-started.md#getting-started"
+      },
+      "dcterms:modified": {
+        "@value": "2026-07-01",
+        "@type": "xsd:date"
+      },
+      "dcterms:references": {
+        "@id": "https://example.com/kg/doc/docs/configuration.md"
+      },
+      "dcterms:subject": [
+        {
+          "@id": "https://example.com/kg/concept/installation"
+        },
+        {
+          "@id": "https://example.com/kg/concept/setup"
+        }
+      ],
+      "dcterms:title": "Getting Started",
+      "prov:generatedAtTime": {
+        "@value": "2026-05-01",
+        "@type": "xsd:date"
+      },
+      "prov:qualifiedAttribution": {
+        "@id": "https://example.com/kg/doc/docs/getting-started.md#prov.attribution.jane-doe"
+      },
+      "prov:wasAttributedTo": {
+        "@id": "https://example.com/kg/agent/person/jane-doe"
+      },
+      "dockg:brokenSectionRef": "missing-heading",
+      "dockg:codeLanguage": [
+        "bash",
+        "python"
+      ],
+      "dockg:path": "docs/getting-started.md",
+      "schema:image": {
+        "@id": "https://example.com/kg/file/docs/img/arch.png"
+      }
+    },
+    {
+      "@id": "https://example.com/kg/doc/docs/getting-started.md#getting-started",
+      "@type": "dockg:Section",
+      "dcterms:hasPart": [
+        {
+          "@id": "https://example.com/kg/doc/docs/getting-started.md#install"
+        },
+        {
+          "@id": "https://example.com/kg/doc/docs/getting-started.md#install-1"
+        }
+      ],
+      "dcterms:title": "Getting Started",
+      "dockg:level": {
+        "@value": "1",
+        "@type": "xsd:integer"
+      },
+      "dockg:order": {
+        "@value": "1",
+        "@type": "xsd:integer"
+      }
+    },
+    {
+      "@id": "https://example.com/kg/doc/docs/getting-started.md#install",
+      "@type": "dockg:Section",
+      "iirds:has-topic-type": {
+        "@id": "http://iirds.tekom.de/iirds#GenericReference"
+      },
+      "iirds:relates-to-product-variant": {
+        "@id": "https://example.com/kg/product/sp-x200"
+      },
+      "dcterms:subject": {
+        "@id": "https://example.com/kg/concept/installation"
+      },
+      "dcterms:title": "Install",
+      "dockg:level": {
+        "@value": "2",
+        "@type": "xsd:integer"
+      },
+      "dockg:order": {
+        "@value": "1",
+        "@type": "xsd:integer"
+      }
+    },
+    {
+      "@id": "https://example.com/kg/doc/docs/getting-started.md#install-1",
+      "@type": "dockg:Section",
+      "dcterms:title": "Install",
+      "dockg:level": {
+        "@value": "2",
+        "@type": "xsd:integer"
+      },
+      "dockg:order": {
+        "@value": "2",
+        "@type": "xsd:integer"
+      }
+    },
+    {
+      "@id": "https://example.com/kg/doc/docs/getting-started.md#prov.attribution.jane-doe",
+      "@type": "prov:Attribution",
+      "prov:agent": {
+        "@id": "https://example.com/kg/agent/person/jane-doe"
+      },
+      "prov:hadRole": {
+        "@id": "https://dockg.dev/ns#authorRole"
+      }
+    },
+    {
+      "@id": "https://example.com/kg/doc/docs/no-frontmatter.md",
+      "@type": [
+        "dockg:Document",
+        "prov:Entity"
+      ],
+      "dcterms:hasPart": {
+        "@id": "https://example.com/kg/doc/docs/no-frontmatter.md#loose-notes"
+      },
+      "dcterms:references": {
+        "@id": "https://example.org/page"
+      },
+      "dcterms:title": "Loose Notes",
+      "dockg:brokenLink": "missing.md",
+      "dockg:path": "docs/no-frontmatter.md"
+    },
+    {
+      "@id": "https://example.com/kg/doc/docs/no-frontmatter.md#loose-notes",
+      "@type": "dockg:Section",
+      "dcterms:title": "Loose Notes",
+      "dockg:level": {
+        "@value": "1",
+        "@type": "xsd:integer"
+      },
+      "dockg:order": {
+        "@value": "1",
+        "@type": "xsd:integer"
+      }
+    },
+    {
+      "@id": "https://example.com/kg/doc/docs/windows-notes.md",
+      "@type": [
+        "dockg:Document",
+        "prov:Entity"
+      ],
+      "dcterms:hasPart": {
+        "@id": "https://example.com/kg/doc/docs/windows-notes.md#windows-notes"
+      },
+      "dcterms:references": {
+        "@id": "https://example.com/kg/doc/docs/configuration.md"
+      },
+      "dcterms:title": "Windows Notes",
+      "dockg:path": "docs/windows-notes.md"
+    },
+    {
+      "@id": "https://example.com/kg/doc/docs/windows-notes.md#windows-notes",
+      "@type": "dockg:Section",
+      "dcterms:title": "Windows Notes",
+      "dockg:level": {
+        "@value": "1",
+        "@type": "xsd:integer"
+      },
+      "dockg:order": {
+        "@value": "1",
+        "@type": "xsd:integer"
+      }
+    },
+    {
+      "@id": "https://example.com/kg/graph",
+      "@type": "prov:Entity",
+      "prov:wasGeneratedBy": {
+        "@id": "https://example.com/kg/activity/build"
+      }
+    },
+    {
+      "@id": "https://example.com/kg/product/sp-x100",
+      "@type": "iirds:ProductVariant",
+      "dcterms:title": "SP-X100"
+    },
+    {
+      "@id": "https://example.com/kg/product/sp-x200",
+      "@type": "iirds:ProductVariant",
+      "dcterms:title": "SP-X200"
+    },
+    {
+      "@id": "https://example.com/kg/product/sp-x300",
+      "@type": "iirds:ProductVariant",
+      "dcterms:title": "SP-X300"
+    },
+    {
+      "@id": "https://example.com/kg/scheme",
+      "@type": "skos:ConceptScheme",
+      "dcterms:title": "dockg concepts"
+    }
+  ]
+}

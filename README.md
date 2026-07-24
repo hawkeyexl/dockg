@@ -44,6 +44,7 @@ dockg stats           # counts, orphan docs, broken links, hubs
 dockg query -p dcterms:references   # who links to what
 dockg validate        # KG-readiness via docmeta
 dockg check           # graph-level SHACL validation
+dockg export -f jsonld  # reserialize the graph as JSON-LD
 ```
 
 Exit codes: `0` ok · `1` findings (validation failures, `check` violations, `stats --check` broken links, `fill` errors) · `2` operational error.
@@ -316,8 +317,30 @@ dockg fill --force            # overwrite human-set kg fields too
 | `dockg fill [globs]` | Propose `kg:` fields with an LLM, gated by confidence, and write them back |
 | `dockg query` | Triple-pattern match: `-s`/`-p`/`-o`, omit for wildcard |
 | `dockg stats` | Counts, orphan docs, broken links, most-connected docs, metadata coverage; `--check` gates CI |
+| `dockg export -f jsonld` | Reserialize the built graph as deterministic JSON-LD |
 
-Shared flags: `-c/--config`, `-f/--format pretty|json`; `build` takes `-o/--out`; `query`/`stats`/`check` take `-g/--graph`; `check` takes `--shapes`; `stats` takes `--coverage-threshold <pct>`. SPARQL is a planned upgrade behind `query`.
+Shared flags: `-c/--config`, `-f/--format pretty|json`; `build` takes `-o/--out`; `query`/`stats`/`check`/`export` take `-g/--graph`; `check` takes `--shapes`; `stats` takes `--coverage-threshold <pct>`; `export` takes `-f/--format` and `-o/--out`. SPARQL is a planned upgrade behind `query`.
+
+### Export
+
+`dockg export --format jsonld` reserializes the built graph (default: config
+`out`) as [JSON-LD](https://www.w3.org/TR/json-ld11/) — the web-native RDF form
+that answer engines, search crawlers, and JSON tooling consume. Because dockg
+already emits `schema.org` terms, the export is directly usable with no lossy
+remapping: it is a **whole-graph, lossless** rendering — every triple, grouped
+by subject, under an `@context` carrying dockg's prefix table.
+
+```bash
+dockg build
+dockg export --format jsonld          # -> kg/graph.jsonld
+dockg export -f jsonld -o out.jsonld  # explicit output path
+```
+
+The output holds the same determinism contract as the Turtle: two exports over
+the same graph are byte-identical (no blank nodes, no wall clock, canonically
+sorted). The default output path is the graph path with a `.jsonld` extension;
+`-o/--out` overrides it. `--format iirds` (an iiRDS package) is a recognized
+flag value that currently exits with a "not yet supported (Phase 6b)" pointer.
 
 ### Metadata coverage
 
