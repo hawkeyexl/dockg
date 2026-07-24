@@ -215,20 +215,37 @@ key, absent, sections-source-off) + regenerated golden, drift guards pinning
 both doc- and section-level enums to `iirds.ts`, and the README/init docs. The
 `dockg:` namespace grew by one property (`brokenSectionRef`).
 
-## Phase 4 — Negative scope and closed-world semantics
+## Phase 4 — Negative scope and closed-world semantics — **done**
 
 **Goal:** make the "absent edge as interlock" pattern *expressible* in an
 open-world RDF graph — explicitly, never by inference from absence.
 
-Decisions to make (ADRs):
-- Modeling: an explicit negative-applicability predicate
-  (`kg.notApplicableTo` → a deliberate addition to the minimal `dockg:`
-  namespace, since neither iiRDS nor schema.org has a `what_it_is_not`
-  equivalent — verify in Phase 2 research) vs. documentation-only guidance
-  vs. per-corpus closed-world declarations.
-- SHACL: `appliesTo`/`notApplicableTo` disjointness as a `sh:Violation`.
-- Consumer contract: README documents what absence means (unknown, not
-  false) and how retrieval layers should implement interlocks.
+Research settled ([ADR 01014](adrs/01014-negative-scope.md)): no standard
+negative-applicability term exists (iiRDS is affirmative-only; schema.org's
+`negativeNotes` is pro/con review text); `owl:NegativePropertyAssertion` is the
+"pure" idiom but mandates a blank node (invariant violation), gives SHACL
+nothing to validate, and has weak consumer support. So Wakabayashi's
+`what_it_is_not` was necessarily custom.
+
+Decided:
+- **Mint two `dockg:` predicates** — `dockg:notApplicableToVariant` and
+  `dockg:notSoftwareSubject`, as `kg.notApplicableTo` (variant labels) and
+  `kg.notSoftwareSubject` (enum), at **document and section** level via the
+  shared `emitIirdsTyping` helper. Plain triples, no blank nodes.
+- **Conflict = `sh:disjoint` violation** — a variant/subject on both the
+  positive and negative predicate of one node fails `check` (per-focus-node, so
+  a doc/section scope difference is legitimately not flagged).
+- **Open-world consumer contract** in the README: absence = unknown; a
+  retrieval interlock queries the negative edge, never infers from a missing
+  positive one.
+
+Delivered: schema `frontmatter-0.7.json`, shapes `dockg-0.4.ttl` (Document +
+Section learn both negative predicates with `sh:disjoint`), the two predicate
+constants in `iirds.ts`, `emitIirdsTyping` extended (one place, both levels),
+drift guards pinning the negative-subject enum, corpus permutations +
+regenerated golden, and README/init docs. The `dockg:` namespace grew by two
+properties (6 → 8). Lifecycle-phase and topic-type negation were left out of
+scope.
 
 ## Phase 5 — Fill as resolution-deepening
 

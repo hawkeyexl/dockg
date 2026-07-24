@@ -17,6 +17,14 @@ export const IIRDS_HAS_SUBJECT = `${NS.iirds}has-subject`;
 /** Class minted for `kg.appliesTo` nodes. */
 export const IIRDS_PRODUCT_VARIANT = `${NS.iirds}ProductVariant`;
 
+/**
+ * Negative-scope predicates (ADR 01014). Minted into `dockg:` — no standard
+ * term exists, and OWL negative property assertions require blank nodes. Each
+ * mirrors, and is SHACL-disjoint from, its positive counterpart above.
+ */
+export const DOCKG_NOT_APPLICABLE_TO_VARIANT = `${NS.dockg}notApplicableToVariant`;
+export const DOCKG_NOT_SOFTWARE_SUBJECT = `${NS.dockg}notSoftwareSubject`;
+
 /** `kg.topicType` value → `iirds:has-topic-type` object IRI. */
 export const TOPIC_TYPE_IRIS: Readonly<Record<string, string>> = {
   task: `${NS.iirds}GenericTask`,

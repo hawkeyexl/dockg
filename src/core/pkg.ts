@@ -24,10 +24,10 @@ export function toolVersion(moduleUrl: string): string {
 
 /** Absolute path of the bundled frontmatter schema `dockg validate` defaults to. */
 export function bundledSchemaPath(moduleUrl: string): string {
-  return join(packageRoot(moduleUrl), "schemas", "frontmatter-0.6.json");
+  return join(packageRoot(moduleUrl), "schemas", "frontmatter-0.7.json");
 }
 
 /** Absolute path of the bundled SHACL shapes `dockg check` defaults to. */
 export function bundledShapesPath(moduleUrl: string): string {
-  return join(packageRoot(moduleUrl), "shapes", "dockg-0.3.ttl");
+  return join(packageRoot(moduleUrl), "shapes", "dockg-0.4.ttl");
 }

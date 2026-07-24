@@ -48,9 +48,9 @@ describe("dockg build (integration)", () => {
       readFileSync(golden, "utf8"),
     );
     // must equal the triple count `build` reports for the corpus
-    // (131 + 4 section-level triples: a brokenSectionRef and three iiRDS
-    // triples on the #install section — ADR 01013)
-    expect(quads.length).toBe(135);
+    // (135 + 4 negative-scope triples: notApplicableToVariant + its
+    // ProductVariant node, and a section notSoftwareSubject — ADR 01014)
+    expect(quads.length).toBe(139);
   });
 
   it("reports docs and triples on stdout", () => {

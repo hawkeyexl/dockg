@@ -134,6 +134,17 @@ describe("iiRDS enums ↔ bundled schema", () => {
       () => sec.softwareSubject!.items!.enum,
       SOFTWARE_SUBJECT_IRIS,
     ],
+    // Negative-scope subject enums share the same value set (ADR 01014).
+    [
+      "kg.notSoftwareSubject",
+      () => kg.notSoftwareSubject!.items!.enum,
+      SOFTWARE_SUBJECT_IRIS,
+    ],
+    [
+      "section.notSoftwareSubject",
+      () => sec.notSoftwareSubject!.items!.enum,
+      SOFTWARE_SUBJECT_IRIS,
+    ],
   ] as const)("%s enum matches its IRI map keys", (_name, getEnum, map) => {
     expect([...(getEnum() ?? [])].sort()).toEqual(Object.keys(map).sort());
   });

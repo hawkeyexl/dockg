@@ -664,6 +664,78 @@ describe("deriveGraph — iiRDS Core/Software typing (ADR 01012)", () => {
   });
 });
 
+describe("deriveGraph — negative scope (ADR 01014)", () => {
+  it("emits notApplicableToVariant + a ProductVariant node, and notSoftwareSubject", () => {
+    const g = graph({
+      "docs/a.md":
+        "---\nkg:\n  notApplicableTo: [SP-X300]\n  notSoftwareSubject: [architecture]\n---\n",
+    });
+    const v = `${BASE}product/sp-x300`;
+    expect(has(g, DOC, `${NS.dockg}notApplicableToVariant`, iri(v))).toBe(true);
+    expect(has(g, v, `${NS.rdf}type`, iri(`${NS.iirds}ProductVariant`))).toBe(
+      true,
+    );
+    expect(has(g, v, `${NS.dcterms}title`, lit("SP-X300"))).toBe(true);
+    expect(
+      has(
+        g,
+        DOC,
+        `${NS.dockg}notSoftwareSubject`,
+        iri(`${NS.iirdsSft}Architecture`),
+      ),
+    ).toBe(true);
+  });
+
+  it("converges a variant used by both appliesTo and notApplicableTo on one node", () => {
+    // (A self-contradiction the SHACL sh:disjoint rule rejects — but derive
+    // still emits both edges to one shared ProductVariant node.)
+    const g = graph({
+      "docs/a.md":
+        "---\nkg:\n  appliesTo: [SP-X1]\n  notApplicableTo: [SP-X1]\n---\n",
+    });
+    const v = `${BASE}product/sp-x1`;
+    expect(has(g, DOC, `${NS.iirds}relates-to-product-variant`, iri(v))).toBe(
+      true,
+    );
+    expect(has(g, DOC, `${NS.dockg}notApplicableToVariant`, iri(v))).toBe(true);
+    expect(g.filter((q) => q.s === v && q.p === `${NS.rdf}type`)).toHaveLength(
+      1,
+    );
+  });
+
+  it("attaches negative scope to a section too", () => {
+    const g = graph({
+      "docs/a.md":
+        "---\nkg:\n  sections:\n    install:\n      notApplicableTo: [SP-X9]\n      notSoftwareSubject: [interface]\n---\n\n# A\n\n## Install\n",
+    });
+    const SEC = `${DOC}#install`;
+    expect(
+      has(
+        g,
+        SEC,
+        `${NS.dockg}notApplicableToVariant`,
+        iri(`${BASE}product/sp-x9`),
+      ),
+    ).toBe(true);
+    expect(
+      has(
+        g,
+        SEC,
+        `${NS.dockg}notSoftwareSubject`,
+        iri(`${NS.iirdsSft}Interface`),
+      ),
+    ).toBe(true);
+  });
+
+  it("emits no negative-scope triples when the fields are absent", () => {
+    const g = graph({ "docs/a.md": "---\nkg:\n  topicType: task\n---\n" });
+    expect(g.some((q) => q.p === `${NS.dockg}notApplicableToVariant`)).toBe(
+      false,
+    );
+    expect(g.some((q) => q.p === `${NS.dockg}notSoftwareSubject`)).toBe(false);
+  });
+});
+
 describe("deriveGraph — section-level metadata (ADR 01013)", () => {
   const SEC = `${DOC}#install`;
 

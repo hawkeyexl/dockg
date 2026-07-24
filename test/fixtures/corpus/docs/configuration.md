@@ -10,6 +10,10 @@ kg:
   topicType: reference
   appliesTo: [SP-X100, SP-X200]
   softwareSubject: [interface]
+  notApplicableTo: [SP-X300]
+  sections:
+    options:
+      notSoftwareSubject: [architecture]
 ---
 
 # Configuration
