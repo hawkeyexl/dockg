@@ -111,6 +111,13 @@ function asStringArray(v: unknown): string[] {
   return [];
 }
 
+/** A plain object as a string-keyed record; anything else becomes `{}`. */
+function asRecord(v: unknown): Record<string, unknown> {
+  return v != null && typeof v === "object" && !Array.isArray(v)
+    ? (v as Record<string, unknown>)
+    : {};
+}
+
 /** First defined frontmatter value among aliases. */
 function fmValue(fm: Record<string, unknown>, keys: string[]): unknown {
   for (const key of keys) {
@@ -169,6 +176,34 @@ export function deriveGraph(docs: DocModel[], options: DeriveOptions): Quad[] {
     add(c, `${NS.skos}inScheme`, iri(mintSchemeIri(baseIri)));
     mintedConcepts = true;
     return c;
+  };
+
+  /**
+   * Emit the four iiRDS typing fields (topicType, appliesTo, softwareLifecycle-
+   * Phase, softwareSubject) for `subjectIri` from a kg-like object. Shared by
+   * the document `kg` block and the per-section `kg.sections` block so the
+   * mapping cannot drift between them (ADR 01012/01013).
+   */
+  const emitIirdsTyping = (subjectIri: string, k: Record<string, unknown>) => {
+    const topicType = asString(k["topicType"]);
+    const topicTypeIri = topicType && TOPIC_TYPE_IRIS[topicType];
+    if (topicTypeIri) add(subjectIri, IIRDS_HAS_TOPIC_TYPE, iri(topicTypeIri));
+
+    for (const label of asStringArray(k["appliesTo"])) {
+      const variant = mintProductIri(baseIri, label);
+      add(subjectIri, IIRDS_RELATES_TO_PRODUCT_VARIANT, iri(variant));
+      add(variant, RDF_TYPE, iri(IIRDS_PRODUCT_VARIANT));
+      add(variant, `${NS.dcterms}title`, lit(label));
+    }
+
+    for (const value of asStringArray(k["softwareLifecyclePhase"])) {
+      const phase = SOFTWARE_LIFECYCLE_IRIS[value];
+      if (phase) add(subjectIri, IIRDS_RELATES_TO_LIFECYCLE_PHASE, iri(phase));
+    }
+    for (const value of asStringArray(k["softwareSubject"])) {
+      const subject = SOFTWARE_SUBJECT_IRIS[value];
+      if (subject) add(subjectIri, IIRDS_HAS_SUBJECT, iri(subject));
+    }
   };
 
   const docByPath = new Map(docs.map((d) => [normalizeDocPath(d.path), d]));
@@ -314,28 +349,8 @@ export function deriveGraph(docs: DocModel[], options: DeriveOptions): Quad[] {
           }
         }
 
-        // iiRDS Core topic type: reference the published instance IRI (ADR 01012).
-        const topicType = asString(k["topicType"]);
-        const topicTypeIri = topicType && TOPIC_TYPE_IRIS[topicType];
-        if (topicTypeIri) add(docIri, IIRDS_HAS_TOPIC_TYPE, iri(topicTypeIri));
-
-        // iiRDS product/variant applicability: mint a ProductVariant per label.
-        for (const label of asStringArray(k["appliesTo"])) {
-          const variant = mintProductIri(baseIri, label);
-          add(docIri, IIRDS_RELATES_TO_PRODUCT_VARIANT, iri(variant));
-          add(variant, RDF_TYPE, iri(IIRDS_PRODUCT_VARIANT));
-          add(variant, `${NS.dcterms}title`, lit(label));
-        }
-
-        // iiRDS Software domain: two dimensions, two predicates (ADR 01012).
-        for (const value of asStringArray(k["softwareLifecyclePhase"])) {
-          const phase = SOFTWARE_LIFECYCLE_IRIS[value];
-          if (phase) add(docIri, IIRDS_RELATES_TO_LIFECYCLE_PHASE, iri(phase));
-        }
-        for (const value of asStringArray(k["softwareSubject"])) {
-          const subject = SOFTWARE_SUBJECT_IRIS[value];
-          if (subject) add(docIri, IIRDS_HAS_SUBJECT, iri(subject));
-        }
+        // iiRDS Core + Software typing on the document (ADR 01012).
+        emitIirdsTyping(docIri, k);
       }
     }
 
@@ -351,6 +366,11 @@ export function deriveGraph(docs: DocModel[], options: DeriveOptions): Quad[] {
     }
 
     if (sources.has("sections")) {
+      // kg.sections: slug-keyed iiRDS typing attached to section nodes
+      // (ADR 01013). Explicit-only — a section gets nothing from the doc.
+      const sectionMeta = asRecord(kg?.["sections"]);
+      const sectionSlugs = new Set(doc.sections.map((s) => s.slug));
+
       for (const section of doc.sections) {
         const secIri = mintSectionIri(docIri, section.slug);
         const parentIri = section.parentSlug
@@ -369,6 +389,20 @@ export function deriveGraph(docs: DocModel[], options: DeriveOptions): Quad[] {
           typedLit(String(section.order), `${NS.xsd}integer`),
         );
         add(parentIri, `${NS.dcterms}hasPart`, iri(secIri));
+
+        const meta = asRecord(sectionMeta[section.slug]);
+        emitIirdsTyping(secIri, meta);
+        for (const label of asStringArray(meta["subjects"])) {
+          add(secIri, `${NS.dcterms}subject`, iri(concept(label)));
+        }
+      }
+
+      // A kg.sections key naming no heading is a broken reference (surfaced by
+      // stats, gated by stats --check) — never a silent drop.
+      for (const slug of Object.keys(sectionMeta)) {
+        if (!sectionSlugs.has(slug)) {
+          add(docIri, `${NS.dockg}brokenSectionRef`, lit(slug));
+        }
       }
     }
 

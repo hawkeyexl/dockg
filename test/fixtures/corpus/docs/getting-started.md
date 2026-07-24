@@ -8,6 +8,13 @@ tags: [setup, installation]
 kg:
   topicType: task
   softwareLifecyclePhase: [deployment]
+  sections:
+    install:
+      topicType: reference
+      appliesTo: [SP-X200]
+      subjects: [installation]
+    missing-heading:
+      topicType: concept
 ---
 
 # Getting Started
