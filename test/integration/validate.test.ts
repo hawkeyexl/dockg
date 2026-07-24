@@ -61,4 +61,25 @@ describe("dockg validate", () => {
     expect(stdout).toMatch(/prefLabel/);
     expect(stdout).toMatch(/bogus/);
   });
+
+  it("accepts negative-scope fields and rejects an out-of-enum notSoftwareSubject (0.7)", () => {
+    const dir = mkdtempSync(join(tmpdir(), "dockg-negscope-"));
+    writeFileSync(
+      join(dir, "dockg.config.yaml"),
+      'version: 1\ninputs: ["*.md"]\n',
+    );
+    writeFileSync(
+      join(dir, "good.md"),
+      "---\nkg:\n  notApplicableTo: [SP-X300]\n  notSoftwareSubject: [architecture]\n---\n\n# G\n",
+    );
+    expect(run(["validate"], dir).status).toBe(0);
+
+    writeFileSync(
+      join(dir, "bad.md"),
+      "---\nkg:\n  notSoftwareSubject: [nonsense]\n---\n\n# B\n",
+    );
+    const bad = run(["validate"], dir);
+    expect(bad.status).toBe(1);
+    expect(bad.stdout).toMatch(/notSoftwareSubject/);
+  });
 });

@@ -16,6 +16,8 @@ export {
 } from "./core/coverage.js";
 export { discoverFiles } from "./core/discover.js";
 export {
+  DOCKG_NOT_APPLICABLE_TO_VARIANT,
+  DOCKG_NOT_SOFTWARE_SUBJECT,
   SOFTWARE_LIFECYCLE_IRIS,
   SOFTWARE_SUBJECT_IRIS,
   TOPIC_TYPE_IRIS,

@@ -223,6 +223,56 @@ describe("validateGraph", () => {
     expect(await validateGraph(store, SHAPES)).toEqual([]);
   });
 
+  it("accepts negative scope disjoint from positive scope (ADR 01014)", async () => {
+    const d = doc("docs/a.md");
+    const v = `${BASE}product/sp-x300`;
+    const store = build([
+      ...conformingTriples(),
+      [d, `${NS.dockg}notApplicableToVariant`, v],
+      [v, RDF_TYPE, `${NS.iirds}ProductVariant`],
+      [v, `${NS.dcterms}title`, { lit: "SP-X300" }],
+      [d, `${NS.dockg}notSoftwareSubject`, `${NS.iirdsSft}Architecture`],
+      // A different subject on the positive side — no conflict.
+      [d, `${NS.iirds}has-subject`, `${NS.iirdsSft}Interface`],
+    ]);
+    expect(await validateGraph(store, SHAPES)).toEqual([]);
+  });
+
+  it("rejects a variant asserted as both applicable and not-applicable (sh:disjoint)", async () => {
+    const d = doc("docs/a.md");
+    const v = `${BASE}product/sp-x1`;
+    const store = build([
+      ...conformingTriples(),
+      [d, `${NS.iirds}relates-to-product-variant`, v],
+      [d, `${NS.dockg}notApplicableToVariant`, v],
+      [v, RDF_TYPE, `${NS.iirds}ProductVariant`],
+      [v, `${NS.dcterms}title`, { lit: "SP-X1" }],
+    ]);
+    const findings = await validateGraph(store, SHAPES);
+    const hit = findings.find(
+      (f) =>
+        f.focusNode === d && f.path === `${NS.dockg}notApplicableToVariant`,
+    );
+    expect(hit).toBeDefined();
+    expect(hit!.severity).toBe("violation");
+    expect(hit!.docs).toEqual(["docs/a.md"]);
+  });
+
+  it("rejects a subject asserted as both about and not-about (sh:disjoint)", async () => {
+    const d = doc("docs/a.md");
+    const store = build([
+      ...conformingTriples(),
+      [d, `${NS.iirds}has-subject`, `${NS.iirdsSft}Interface`],
+      [d, `${NS.dockg}notSoftwareSubject`, `${NS.iirdsSft}Interface`],
+    ]);
+    const findings = await validateGraph(store, SHAPES);
+    const hit = findings.find(
+      (f) => f.focusNode === d && f.path === `${NS.dockg}notSoftwareSubject`,
+    );
+    expect(hit).toBeDefined();
+    expect(hit!.severity).toBe("violation");
+  });
+
   it("detects a two-node skos:broader cycle", async () => {
     const store = build([
       ...conformingTriples(),

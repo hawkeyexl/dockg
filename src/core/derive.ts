@@ -23,6 +23,8 @@ import {
 } from "./iri.js";
 import { NS, RDF_TYPE, ROLE } from "./vocab.js";
 import {
+  DOCKG_NOT_APPLICABLE_TO_VARIANT,
+  DOCKG_NOT_SOFTWARE_SUBJECT,
   IIRDS_HAS_SUBJECT,
   IIRDS_HAS_TOPIC_TYPE,
   IIRDS_PRODUCT_VARIANT,
@@ -178,11 +180,21 @@ export function deriveGraph(docs: DocModel[], options: DeriveOptions): Quad[] {
     return c;
   };
 
+  /** ProductVariant node (type + label); returns its IRI. Positive and
+   *  negative applicability converge on one node per label. */
+  const variantNode = (label: string): string => {
+    const variant = mintProductIri(baseIri, label);
+    add(variant, RDF_TYPE, iri(IIRDS_PRODUCT_VARIANT));
+    add(variant, `${NS.dcterms}title`, lit(label));
+    return variant;
+  };
+
   /**
-   * Emit the four iiRDS typing fields (topicType, appliesTo, softwareLifecycle-
-   * Phase, softwareSubject) for `subjectIri` from a kg-like object. Shared by
-   * the document `kg` block and the per-section `kg.sections` block so the
-   * mapping cannot drift between them (ADR 01012/01013).
+   * Emit the iiRDS typing fields (topicType, appliesTo, softwareLifecyclePhase,
+   * softwareSubject) plus the negative-scope fields (notApplicableTo,
+   * notSoftwareSubject) for `subjectIri` from a kg-like object. Shared by the
+   * document `kg` block and the per-section `kg.sections` block so the mapping
+   * cannot drift between them (ADR 01012/01013/01014).
    */
   const emitIirdsTyping = (subjectIri: string, k: Record<string, unknown>) => {
     const topicType = asString(k["topicType"]);
@@ -190,10 +202,14 @@ export function deriveGraph(docs: DocModel[], options: DeriveOptions): Quad[] {
     if (topicTypeIri) add(subjectIri, IIRDS_HAS_TOPIC_TYPE, iri(topicTypeIri));
 
     for (const label of asStringArray(k["appliesTo"])) {
-      const variant = mintProductIri(baseIri, label);
-      add(subjectIri, IIRDS_RELATES_TO_PRODUCT_VARIANT, iri(variant));
-      add(variant, RDF_TYPE, iri(IIRDS_PRODUCT_VARIANT));
-      add(variant, `${NS.dcterms}title`, lit(label));
+      add(
+        subjectIri,
+        IIRDS_RELATES_TO_PRODUCT_VARIANT,
+        iri(variantNode(label)),
+      );
+    }
+    for (const label of asStringArray(k["notApplicableTo"])) {
+      add(subjectIri, DOCKG_NOT_APPLICABLE_TO_VARIANT, iri(variantNode(label)));
     }
 
     for (const value of asStringArray(k["softwareLifecyclePhase"])) {
@@ -203,6 +219,10 @@ export function deriveGraph(docs: DocModel[], options: DeriveOptions): Quad[] {
     for (const value of asStringArray(k["softwareSubject"])) {
       const subject = SOFTWARE_SUBJECT_IRIS[value];
       if (subject) add(subjectIri, IIRDS_HAS_SUBJECT, iri(subject));
+    }
+    for (const value of asStringArray(k["notSoftwareSubject"])) {
+      const subject = SOFTWARE_SUBJECT_IRIS[value];
+      if (subject) add(subjectIri, DOCKG_NOT_SOFTWARE_SUBJECT, iri(subject));
     }
   };
 

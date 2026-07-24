@@ -57,6 +57,7 @@
   dcterms:subject <https://example.com/kg/concept/configuration>, <https://example.com/kg/concept/reference> ;
   dcterms:title "Configuration Reference" ;
   foaf:primaryTopic <https://example.com/kg/concept/configuration> ;
+  dockg:notApplicableToVariant <https://example.com/kg/product/sp-x300> ;
   dockg:path "docs/configuration.md" .
 
 <https://example.com/kg/doc/docs/configuration.md#advanced> a dockg:Section ;
@@ -74,6 +75,7 @@
   dcterms:hasPart <https://example.com/kg/doc/docs/configuration.md#advanced> ;
   dcterms:title "Options" ;
   dockg:level 2 ;
+  dockg:notSoftwareSubject iirdsSft:Architecture ;
   dockg:order 1 .
 
 <https://example.com/kg/doc/docs/getting-started.md> a prov:Entity, dockg:Document ;
@@ -149,6 +151,9 @@
 
 <https://example.com/kg/product/sp-x200> a iirds:ProductVariant ;
   dcterms:title "SP-X200" .
+
+<https://example.com/kg/product/sp-x300> a iirds:ProductVariant ;
+  dcterms:title "SP-X300" .
 
 <https://example.com/kg/scheme> a skos:ConceptScheme ;
   dcterms:title "dockg concepts" .

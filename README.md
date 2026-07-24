@@ -4,7 +4,7 @@ Deterministic knowledge graphs derived from documentation frontmatter and format
 
 `dockg` reads your docs — Markdown first — and derives an RDF knowledge graph from what is already there: frontmatter fields, heading structure, links between pages, tags, images, and code blocks. The build is **deterministic**: stable IRIs, sorted serialization, byte-identical rebuilds. The emitted `.ttl` diffs cleanly in git, so the graph can live next to the docs it describes.
 
-It pairs with [docmeta](https://github.com/hawkeyexl/docmeta) (which powers `dockg validate`) and follows the same CLI conventions as [docevals](https://github.com/hawkeyexl/docevals). dockg's frontmatter schema is published in this repo at [`schemas/frontmatter-0.6.json`](schemas/frontmatter-0.6.json) — point any JSON Schema tool at it, e.g. `docmeta validate --schema node_modules/dockg/schemas/frontmatter-0.6.json docs/`.
+It pairs with [docmeta](https://github.com/hawkeyexl/docmeta) (which powers `dockg validate`) and follows the same CLI conventions as [docevals](https://github.com/hawkeyexl/docevals). dockg's frontmatter schema is published in this repo at [`schemas/frontmatter-0.7.json`](schemas/frontmatter-0.7.json) — point any JSON Schema tool at it, e.g. `docmeta validate --schema node_modules/dockg/schemas/frontmatter-0.7.json docs/`.
 
 ## What the graph is (and isn't)
 
@@ -50,7 +50,7 @@ Exit codes: `0` ok · `1` findings (validation failures, `check` violations, `st
 
 ## What gets derived
 
-Standard vocabularies wherever a term exists — Dublin Core (`dcterms:`), SKOS (`skos:`), schema.org (`schema:`), FOAF (`foaf:`), and iiRDS (`iirds:`, `iirdsSft:`) for technical-documentation semantics — plus a minimal custom namespace `dockg: <https://dockg.dev/ns#>` (2 classes, 6 properties).
+Standard vocabularies wherever a term exists — Dublin Core (`dcterms:`), SKOS (`skos:`), schema.org (`schema:`), FOAF (`foaf:`), and iiRDS (`iirds:`, `iirdsSft:`) for technical-documentation semantics — plus a minimal custom namespace `dockg: <https://dockg.dev/ns#>` (2 classes, 8 properties).
 
 | Source | Triples |
 |---|---|
@@ -68,13 +68,14 @@ Standard vocabularies wherever a term exists — Dublin Core (`dcterms:`), SKOS 
 | `kg.topicType` | `iirds:has-topic-type` → the matching iiRDS Core instance (`iirds:GenericTask`, …) |
 | `kg.appliesTo` | `iirds:relates-to-product-variant` → minted `iirds:ProductVariant` nodes (`dcterms:title` label) |
 | `kg.softwareLifecyclePhase` / `kg.softwareSubject` | iiRDS Software domain — `iirds:relates-to-product-lifecycle-phase` / `iirds:has-subject` → published `iirdsSft:` instances |
+| `kg.notApplicableTo` / `kg.notSoftwareSubject` | explicit negative scope — `dockg:notApplicableToVariant` / `dockg:notSoftwareSubject`, `sh:disjoint` from the positive edge |
 | `kg:` frontmatter | see below |
 
 Note: the emitted `schema:` prefix is `https://schema.org/` (the current recommendation); merge legacy `http://schema.org/` data with `owl:sameAs` handling if you need to.
 
 ## The `kg:` frontmatter key
 
-**Naming:** the *frontmatter key* is `kg:`; the *RDF namespace prefix* is `dockg:`. The `kg` key holds the SKOS fields dockg owns plus iiRDS typing, validated by the JSON Schema published in this repo (`schemas/frontmatter-0.6.json`). Docs without a `kg` key are fine — everything above still derives.
+**Naming:** the *frontmatter key* is `kg:`; the *RDF namespace prefix* is `dockg:`. The `kg` key holds the SKOS fields dockg owns plus iiRDS typing, validated by the JSON Schema published in this repo (`schemas/frontmatter-0.7.json`). Docs without a `kg` key are fine — everything above still derives.
 
 ```yaml
 ---
@@ -122,6 +123,32 @@ declares, nothing inherited from the document. A key that matches no heading
 (e.g. after a heading is renamed) derives `<doc> dockg:brokenSectionRef "slug"`,
 surfaced by [`dockg stats`](#metadata-coverage) and gated by `stats --check`,
 just like a broken link — so the metadata is never silently lost.
+
+### Negative scope (`kg.notApplicableTo`, `kg.notSoftwareSubject`)
+
+Content can also assert what it explicitly does **not** apply to — the RDF-safe
+form of an interlock ([ADR 01014](adrs/01014-negative-scope.md)). Both fields
+work at document and section level and mirror their positive counterparts:
+
+```yaml
+kg:
+  appliesTo: [SP-X100, SP-X200]
+  notApplicableTo: [SP-X300]      # -> dockg:notApplicableToVariant
+  softwareSubject: [interface]
+  notSoftwareSubject: [architecture]  # -> dockg:notSoftwareSubject
+```
+
+A variant or subject listed as both applicable and not-applicable on the **same**
+node is a contradiction — `dockg check` fails it via `sh:disjoint`.
+
+**Consumer contract (this matters for retrieval).** RDF is open-world: the
+*absence* of an `appliesTo` edge means **unknown**, not "does not apply." A
+retrieval interlock that wants to exclude content must query the **negative**
+edge (`dockg:notApplicableToVariant`) — it must never infer exclusion from a
+missing positive edge. That distinction is what lets a graph-driven assistant
+stay correctly silent instead of guessing across a variant boundary. dockg mints
+these two `dockg:` predicates because no standard term exists and the OWL
+negative-assertion idiom requires blank nodes (which dockg never emits).
 
 ## Example output
 
@@ -206,9 +233,9 @@ values, and the machine-attribution disappears from the graph. That makes
 "which parts of my taxonomy did an LLM propose?" a one-liner:
 `dockg query -p dockg:filledField`.
 
-These fields are validated by **`schemas/frontmatter-0.6.json`** (bundled with
+These fields are validated by **`schemas/frontmatter-0.7.json`** (bundled with
 the package; the default for `dockg validate`). Earlier versions
-(`frontmatter-0.1.json` through `frontmatter-0.5.json`) remain published
+(`frontmatter-0.1.json` through `frontmatter-0.6.json`) remain published
 alongside it.
 
 ## Graph validation (SHACL)
@@ -219,7 +246,7 @@ alongside it.
 dockg build && dockg check
 ```
 
-The rules live in a published SHACL shapes contract, [`shapes/dockg-0.3.ttl`](shapes/dockg-0.3.ttl), bundled with the package (override with `check.shapes` or `--shapes`). Like the frontmatter schemas, published shapes files are immutable — the contract evolves by adding a new version file. Point any SHACL tool at it to validate your own merged graphs against the same rules.
+The rules live in a published SHACL shapes contract, [`shapes/dockg-0.4.ttl`](shapes/dockg-0.4.ttl), bundled with the package (override with `check.shapes` or `--shapes`). Like the frontmatter schemas, published shapes files are immutable — the contract evolves by adding a new version file. Point any SHACL tool at it to validate your own merged graphs against the same rules.
 
 What it catches:
 
@@ -283,8 +310,8 @@ dockg fill --force            # overwrite human-set kg fields too
 |---|---|
 | `dockg init` | Scaffold a starter `dockg.config.yaml` |
 | `dockg build [globs]` | Derive the graph and write deterministic Turtle |
-| `dockg validate [globs]` | Check KG frontmatter via docmeta (bundled `schemas/frontmatter-0.6.json`) |
-| `dockg check` | Validate the built graph against the SHACL shapes (bundled `shapes/dockg-0.3.ttl`) |
+| `dockg validate [globs]` | Check KG frontmatter via docmeta (bundled `schemas/frontmatter-0.7.json`) |
+| `dockg check` | Validate the built graph against the SHACL shapes (bundled `shapes/dockg-0.4.ttl`) |
 | `dockg fill [globs]` | Propose SKOS `kg:` fields with an LLM and write them back |
 | `dockg query` | Triple-pattern match: `-s`/`-p`/`-o`, omit for wildcard |
 | `dockg stats` | Counts, orphan docs, broken links, most-connected docs, metadata coverage; `--check` gates CI |
@@ -331,8 +358,8 @@ stats:
   coverageThreshold:
     title: 100
     description: 50
-# validate.schemas defaults to the bundled schemas/frontmatter-0.6.json
-# check.shapes defaults to the bundled shapes/dockg-0.3.ttl
+# validate.schemas defaults to the bundled schemas/frontmatter-0.7.json
+# check.shapes defaults to the bundled shapes/dockg-0.4.ttl
 fill:
   provider: anthropic
   temperature: 0
