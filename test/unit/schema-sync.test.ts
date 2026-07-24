@@ -98,29 +98,40 @@ describe("COVERAGE_FIELD_NAMES ↔ config schema", () => {
  * would derive no triple (or Ajv would reject a mapped one). ADR 01012.
  */
 describe("iiRDS enums ↔ bundled schema", () => {
-  const kg = (
-    JSON.parse(readFileSync(bundledSchemaPath(import.meta.url), "utf8")) as {
-      properties: {
-        kg: {
-          properties: Record<
-            string,
-            { enum?: string[]; items?: { enum?: string[] } }
-          >;
-        };
-      };
-    }
-  ).properties.kg.properties;
+  type Field = { enum?: string[]; items?: { enum?: string[] } };
+  const parsed = JSON.parse(
+    readFileSync(bundledSchemaPath(import.meta.url), "utf8"),
+  ) as {
+    properties: { kg: { properties: Record<string, Field> } };
+    $defs: { sectionMetadata: { properties: Record<string, Field> } };
+  };
+  const kg = parsed.properties.kg.properties;
+  const sec = parsed.$defs.sectionMetadata.properties;
 
+  // Both the document-level fields and the section-level (sectionMetadata)
+  // fields are pinned to the same iirds.ts maps, so they cannot diverge from
+  // the source of truth — or from each other. ADR 01012/01013.
   it.each([
-    ["topicType", () => kg.topicType!.enum, TOPIC_TYPE_IRIS],
+    ["kg.topicType", () => kg.topicType!.enum, TOPIC_TYPE_IRIS],
     [
-      "softwareLifecyclePhase",
+      "kg.softwareLifecyclePhase",
       () => kg.softwareLifecyclePhase!.items!.enum,
       SOFTWARE_LIFECYCLE_IRIS,
     ],
     [
-      "softwareSubject",
+      "kg.softwareSubject",
       () => kg.softwareSubject!.items!.enum,
+      SOFTWARE_SUBJECT_IRIS,
+    ],
+    ["section.topicType", () => sec.topicType!.enum, TOPIC_TYPE_IRIS],
+    [
+      "section.softwareLifecyclePhase",
+      () => sec.softwareLifecyclePhase!.items!.enum,
+      SOFTWARE_LIFECYCLE_IRIS,
+    ],
+    [
+      "section.softwareSubject",
+      () => sec.softwareSubject!.items!.enum,
       SOFTWARE_SUBJECT_IRIS,
     ],
   ] as const)("%s enum matches its IRI map keys", (_name, getEnum, map) => {

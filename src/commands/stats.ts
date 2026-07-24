@@ -47,6 +47,8 @@ export interface StatsReport {
   /** dockg:path of docs with no in/out dcterms:references. */
   orphans: string[];
   brokenLinks: Array<{ doc: string; target: string }>;
+  /** kg.sections keys that matched no heading (dockg:brokenSectionRef). */
+  brokenSectionRefs: Array<{ doc: string; slug: string }>;
   mostConnected: Array<{ doc: string; degree: number }>;
   /** Per-field metadata coverage, in report order. */
   coverage: CoverageRow[];
@@ -120,6 +122,14 @@ export function runStats(opts: StatsOptions = {}): StatsReport {
     }))
     .sort((a, b) => (a.doc + a.target < b.doc + b.target ? -1 : 1));
 
+  const brokenSectionRefs = store
+    .getQuads(null, namedNode(`${NS.dockg}brokenSectionRef`), null, null)
+    .map((q) => ({
+      doc: pathOf.get(q.subject.value) ?? q.subject.value,
+      slug: q.object.value,
+    }))
+    .sort((a, b) => (a.doc + a.slug < b.doc + b.slug ? -1 : 1));
+
   const mostConnected = [...degree.entries()]
     .filter(([, deg]) => deg > 0)
     .map(([doc, deg]) => ({ doc: pathOf.get(doc)!, degree: deg }))
@@ -162,7 +172,10 @@ export function runStats(opts: StatsOptions = {}): StatsReport {
     }));
 
   const failed =
-    !!opts.check && (brokenLinks.length > 0 || coverageFindings.length > 0);
+    !!opts.check &&
+    (brokenLinks.length > 0 ||
+      brokenSectionRefs.length > 0 ||
+      coverageFindings.length > 0);
 
   return {
     triples: store.size,
@@ -183,6 +196,7 @@ export function runStats(opts: StatsOptions = {}): StatsReport {
     references: refQuads.length,
     orphans,
     brokenLinks,
+    brokenSectionRefs,
     mostConnected,
     coverage,
     coverageFindings,
@@ -218,6 +232,12 @@ export function renderStats(
     lines.push(`  ${doc} -> ${target}`);
   }
   if (report.brokenLinks.length === 0) lines.push("  (none)");
+
+  lines.push("", `Broken section refs (${report.brokenSectionRefs.length}):`);
+  for (const { doc, slug } of report.brokenSectionRefs) {
+    lines.push(`  ${doc} -> #${slug}`);
+  }
+  if (report.brokenSectionRefs.length === 0) lines.push("  (none)");
 
   const belowThreshold = new Set(report.coverageFindings.map((f) => f.field));
   const width = Math.max(...report.coverage.map((c) => c.field.length));

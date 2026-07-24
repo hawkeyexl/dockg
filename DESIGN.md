@@ -188,25 +188,32 @@ permutations + regenerated golden, and the README/init/DIN-SPEC-correction
 docs. Node-level `rdf:type iirds:Topic` and the information-unit hierarchy were
 deliberately not adopted (see the ADR).
 
-## Phase 3 — Section-level metadata
+## Phase 3 — Section-level metadata — **done**
 
 **Goal:** metadata attaches at the granularity the graph already models.
 
-Decisions to make (ADRs):
-- **Authoring mechanism.** Leading candidate: slug-keyed frontmatter
-  (`kg.sections.<heading-slug>: {...}`) — schema-validatable, no new inline
-  syntax, joins on the slugs section IRIs already use. Alternatives to weigh:
-  inline directives/comments in the body; per-section files. Decide.
-- Slug-drift handling (heading renamed → orphaned key): silent drop is a
-  self-inflicted evaporation; a `brokenSectionRef`-style finding surfaced by
-  `stats` is the leading candidate.
-- Inheritance semantics: does a section inherit doc-level metadata, override
-  it, or neither (explicit-only)?
-- Which fields are section-assignable (all of `kg:`? only the iiRDS
-  applicability/typing fields?).
+Decided ([ADR 01013](adrs/01013-section-level-metadata.md)):
+- **Authoring: slug-keyed `kg.sections` map** — `kg.sections.<heading-slug>:
+  {…}`, keyed by the GitHub-style slug section IRIs and link anchors already
+  use. Inline body directives rejected (would break the frontmatter-only
+  contract).
+- **Fields: iiRDS typing + `subjects`** — `topicType`, `appliesTo`,
+  `softwareLifecyclePhase`, `softwareSubject`, `subjects`. Not
+  `prefLabel`/hierarchy (a "primary topic per section" is meaningless).
+- **Inheritance: explicit-only** — a section gets exactly what its block
+  declares; nothing from the doc. Keeps the graph small and provenance clear.
+- **Slug drift: `dockg:brokenSectionRef`** — a key naming no heading derives
+  `<doc> dockg:brokenSectionRef "slug"`, surfaced by `stats` and gated by
+  `stats --check`, mirroring `brokenLink`. Never a silent drop.
 
-Deliverables: schema + derive + shapes coverage, corpus permutations
-(overrides, absent, drifted slug), docs.
+Delivered: schema `frontmatter-0.6.json` (a `sectionMetadata` `$def`), shapes
+`dockg-0.3.ttl` (Section learns four iiRDS predicates + `dcterms:subject`,
+Document learns `brokenSectionRef`), a shared `emitIirdsTyping` helper in
+`derive.ts` (doc + section share one mapping), `stats` reporting + `--check`
+gating of broken section refs, corpus permutations (matched section, broken
+key, absent, sections-source-off) + regenerated golden, drift guards pinning
+both doc- and section-level enums to `iirds.ts`, and the README/init docs. The
+`dockg:` namespace grew by one property (`brokenSectionRef`).
 
 ## Phase 4 — Negative scope and closed-world semantics
 

@@ -664,6 +664,107 @@ describe("deriveGraph — iiRDS Core/Software typing (ADR 01012)", () => {
   });
 });
 
+describe("deriveGraph — section-level metadata (ADR 01013)", () => {
+  const SEC = `${DOC}#install`;
+
+  it("attaches iiRDS typing and subjects to the matching section node", () => {
+    const g = graph({
+      "docs/a.md":
+        "---\nkg:\n  sections:\n    install:\n      topicType: reference\n      appliesTo: [SP-X200]\n      softwareSubject: [interface]\n      subjects: [setup]\n---\n\n# A\n\n## Install\n",
+    });
+    expect(
+      has(
+        g,
+        SEC,
+        `${NS.iirds}has-topic-type`,
+        iri(`${NS.iirds}GenericReference`),
+      ),
+    ).toBe(true);
+    expect(
+      has(
+        g,
+        SEC,
+        `${NS.iirds}relates-to-product-variant`,
+        iri(`${BASE}product/sp-x200`),
+      ),
+    ).toBe(true);
+    expect(
+      has(g, SEC, `${NS.iirds}has-subject`, iri(`${NS.iirdsSft}Interface`)),
+    ).toBe(true);
+    expect(
+      has(g, SEC, `${NS.dcterms}subject`, iri(`${BASE}concept/setup`)),
+    ).toBe(true);
+  });
+
+  it("emits dockg:brokenSectionRef for a key naming no heading", () => {
+    const g = graph({
+      "docs/a.md":
+        "---\nkg:\n  sections:\n    nope:\n      topicType: task\n---\n\n# A\n\n## Install\n",
+    });
+    expect(has(g, DOC, `${NS.dockg}brokenSectionRef`, lit("nope"))).toBe(true);
+    // The unmatched key attaches nothing to any section node.
+    expect(g.some((q) => q.p === `${NS.iirds}has-topic-type`)).toBe(false);
+  });
+
+  it("does not leak the document's typing onto sections (explicit-only)", () => {
+    const g = graph({
+      "docs/a.md": "---\nkg:\n  topicType: task\n---\n\n# A\n\n## Install\n",
+    });
+    // The doc is typed; the section is not.
+    expect(
+      has(g, DOC, `${NS.iirds}has-topic-type`, iri(`${NS.iirds}GenericTask`)),
+    ).toBe(true);
+    expect(
+      g.some((q) => q.s === SEC && q.p === `${NS.iirds}has-topic-type`),
+    ).toBe(false);
+  });
+
+  it("emits no section metadata when kg.sections is absent", () => {
+    const g = graph({ "docs/a.md": "# A\n\n## Install\n" });
+    expect(g.some((q) => q.p === `${NS.dockg}brokenSectionRef`)).toBe(false);
+    expect(g.some((q) => q.s === SEC && q.p.startsWith(NS.iirds))).toBe(false);
+  });
+
+  it("requires the sections source (no section nodes, no metadata or broken ref)", () => {
+    const g = graph(
+      {
+        "docs/a.md":
+          "---\nkg:\n  sections:\n    install:\n      topicType: task\n    nope:\n      topicType: task\n---\n\n# A\n\n## Install\n",
+      },
+      ["frontmatter"],
+    );
+    // Sections source off: no section nodes, and no brokenSectionRef either
+    // (every key would falsely read as broken without sections to match).
+    expect(g.some((q) => q.p === `${NS.dockg}brokenSectionRef`)).toBe(false);
+    expect(g.some((q) => q.s === SEC)).toBe(false);
+  });
+
+  it("gates section typing on the sections source, independent of frontmatter", () => {
+    // ADR 01013's deliberate asymmetry: with `frontmatter` off but `sections`
+    // on, the section still gets its iiRDS typing even though the document's
+    // own kg typing (under `frontmatter`) does not.
+    const g = graph(
+      {
+        "docs/a.md":
+          "---\nkg:\n  topicType: concept\n  sections:\n    install:\n      topicType: task\n---\n\n# A\n\n## Install\n",
+      },
+      ["sections"],
+    );
+    expect(
+      has(g, SEC, `${NS.iirds}has-topic-type`, iri(`${NS.iirds}GenericTask`)),
+    ).toBe(true);
+    // Document-level typing is gated by `frontmatter`, which is off here.
+    expect(
+      has(
+        g,
+        DOC,
+        `${NS.iirds}has-topic-type`,
+        iri(`${NS.iirds}GenericConcept`),
+      ),
+    ).toBe(false);
+  });
+});
+
 describe("deriveGraph — images, code, derive toggles", () => {
   it("maps images and code languages", () => {
     const g = graph({

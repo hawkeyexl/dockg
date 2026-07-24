@@ -144,6 +144,7 @@ describe("dockg stats", () => {
       concepts: number;
       orphans: string[];
       brokenLinks: Array<{ doc: string; target: string }>;
+      brokenSectionRefs: Array<{ doc: string; slug: string }>;
       mostConnected: Array<{ doc: string; degree: number }>;
     };
     expect(report.docs).toBe(4);
@@ -155,14 +156,50 @@ describe("dockg stats", () => {
     expect(report.brokenLinks).toEqual([
       { doc: "docs/no-frontmatter.md", target: "missing.md" },
     ]);
+    // getting-started.md carries a kg.sections key naming no heading.
+    expect(report.brokenSectionRefs).toEqual([
+      { doc: "docs/getting-started.md", slug: "missing-heading" },
+    ]);
     expect(report.mostConnected[0]).toMatchObject({
       doc: "docs/configuration.md",
     });
   });
 
-  it("--check exits 1 when broken links exist", () => {
+  it("reports broken section refs in pretty output", () => {
+    const { stdout } = run(["stats", "-g", graph]);
+    expect(stdout).toContain("Broken section refs (1):");
+    expect(stdout).toContain("docs/getting-started.md -> #missing-heading");
+  });
+
+  it("--check exits 1 when broken links or section refs exist", () => {
     const { status } = run(["stats", "--check", "-g", graph]);
     expect(status).toBe(1);
+  });
+
+  it("--check exits 1 for a broken section ref on an otherwise clean corpus", () => {
+    const dir = mkdtempSync(join(tmpdir(), "dockg-secref-"));
+    writeFileSync(
+      join(dir, "dockg.config.yaml"),
+      'version: 1\ninputs: ["*.md"]\nprovenance:\n  git: false\n',
+    );
+    writeFileSync(
+      join(dir, "a.md"),
+      "---\nkg:\n  sections:\n    nope:\n      topicType: task\n---\n\n# A\n\n## Real\n",
+    );
+    execFileSync(
+      process.execPath,
+      [cli, "build", "--out", join(dir, "g.ttl")],
+      {
+        encoding: "utf8",
+        cwd: dir,
+      },
+    );
+    const r = spawnSync(
+      process.execPath,
+      [cli, "stats", "-g", join(dir, "g.ttl"), "--check"],
+      { encoding: "utf8", cwd: dir },
+    );
+    expect(r.status).toBe(1);
   });
 });
 

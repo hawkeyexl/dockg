@@ -178,6 +178,51 @@ describe("validateGraph", () => {
     expect(hit!.docs).toEqual(["docs/a.md"]);
   });
 
+  it("accepts a section carrying iiRDS typing (ADR 01013)", async () => {
+    const s = `${doc("docs/a.md")}#install`;
+    const v = `${BASE}product/sp-x200`;
+    const store = build([
+      ...conformingTriples(),
+      [s, RDF_TYPE, `${NS.dockg}Section`],
+      [s, `${NS.dcterms}title`, { lit: "Install" }],
+      [s, `${NS.dockg}level`, { lit: "2", dt: `${NS.xsd}integer` }],
+      [s, `${NS.dockg}order`, { lit: "1", dt: `${NS.xsd}integer` }],
+      [s, `${NS.iirds}has-topic-type`, `${NS.iirds}GenericReference`],
+      [s, `${NS.iirds}relates-to-product-variant`, v],
+      [v, RDF_TYPE, `${NS.iirds}ProductVariant`],
+      [v, `${NS.dcterms}title`, { lit: "SP-X200" }],
+      [s, `${NS.iirds}has-subject`, `${NS.iirdsSft}Interface`],
+    ]);
+    expect(await validateGraph(store, SHAPES)).toEqual([]);
+  });
+
+  it("rejects an out-of-set section topic type (Section sh:in)", async () => {
+    const s = `${doc("docs/a.md")}#install`;
+    const store = build([
+      ...conformingTriples(),
+      [s, RDF_TYPE, `${NS.dockg}Section`],
+      [s, `${NS.dcterms}title`, { lit: "Install" }],
+      [s, `${NS.dockg}level`, { lit: "2", dt: `${NS.xsd}integer` }],
+      [s, `${NS.dockg}order`, { lit: "1", dt: `${NS.xsd}integer` }],
+      [s, `${NS.iirds}has-topic-type`, `${NS.iirds}GenericNonsense`],
+    ]);
+    const findings = await validateGraph(store, SHAPES);
+    const hit = findings.find(
+      (f) => f.focusNode === s && f.path === `${NS.iirds}has-topic-type`,
+    );
+    expect(hit).toBeDefined();
+    expect(hit!.severity).toBe("violation");
+  });
+
+  it("accepts dockg:brokenSectionRef on a document", async () => {
+    const d = doc("docs/a.md");
+    const store = build([
+      ...conformingTriples(),
+      [d, `${NS.dockg}brokenSectionRef`, { lit: "missing-heading" }],
+    ]);
+    expect(await validateGraph(store, SHAPES)).toEqual([]);
+  });
+
   it("detects a two-node skos:broader cycle", async () => {
     const store = build([
       ...conformingTriples(),
